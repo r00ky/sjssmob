@@ -1,0 +1,39 @@
+<Server port="8005" shutdown="SHUTDOWN">
+  <Listener SSLEngine="on" className="org.apache.catalina.core.AprLifecycleListener"/>
+  <Listener className="org.apache.catalina.core.JasperListener"/>
+  <Listener className="org.apache.catalina.core.JreMemoryLeakPreventionListener"/>
+  <Listener className="org.apache.catalina.mbeans.GlobalResourcesLifecycleListener"/>
+  <Listener className="org.apache.catalina.core.ThreadLocalLeakPreventionListener"/>
+
+  <GlobalNamingResources>
+    <Resource auth="Container" description="User database that can be updated and saved" factory="org.apache.catalina.users.MemoryUserDatabaseFactory" name="UserDatabase" pathname="conf/tomcat-users.xml" type="org.apache.catalina.UserDatabase"/>
+    
+  </GlobalNamingResources>
+
+  <Service name="Catalina">
+
+    <Connector connectionTimeout="20000" port="8080" protocol="HTTP/1.1" redirectPort="8443"/>
+    <Connector port="8009" protocol="AJP/1.3" redirectPort="8443"/>
+    <Engine defaultHost="localhost" name="Catalina">
+      <Realm className="org.apache.catalina.realm.LockOutRealm">
+        <Realm className="org.apache.catalina.realm.UserDatabaseRealm" resourceName="UserDatabase"/>
+      </Realm>
+      <Host appBase="webapps" autoDeploy="true" name="localhost" unpackWARs="true">
+
+      <Context docBase="sjssmob" path="/sjssmob" reloadable="true" source="org.eclipse.jst.jee.server:sjssmob">
+			              <Resource name="JDBC_DS"
+              auth="Container"
+              type="javax.sql.DataSource"
+              driverClassName="com.microsoft.sqlserver.jdbc.SQLServerDriver"
+              url="jdbc:sqlserver://change21.iptime.org:6198;DatabaseName=merp_test"
+              validationQuery="select 1"
+              username="merp"
+              password="merp"
+              maxActive="20"
+              maxIdle="10"
+              maxWait="-1"/>
+	</Context>      
+      </Host>
+    </Engine>
+  </Service>
+</Server>

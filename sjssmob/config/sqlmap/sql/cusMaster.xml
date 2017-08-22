@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="cusMaster">
+
+
+	<select id="cusMaster.selectBranchCode" parameterType="Map" resultType="BranchCodeBO">
+		SELECT RTRIM(BRANCH_CODE) AS BRANCH_CODE
+		      ,RTRIM(BRANCH_NAME) AS BRANCH_NAME
+		  FROM SYS_BRANCH_MST
+		 WHERE 1 = 1
+		    <if test='USRKND eq "1"'>
+		   		AND BRANCH_CODE != 'ALL'
+		    	AND AGENT_YN = '1'
+		    </if>
+		    <if test='USRKND eq "2"'>
+		   		AND BRANCH_CODE != 'ALL'
+		    	AND AGENT_YN != '1'
+		    </if>
+		    <if test='USRKND eq "3"'>
+		   		AND BRANCH_CODE = 'ALL'
+		    </if>
+		    <if test='USRKND eq "4"'>
+		    	AND BRANCH_CODE != 'ALL'
+		    </if>
+		 ORDER BY 1
+	</select>
+
+	<select id='cusMaster.selectCustList' parameterType='Map' resultType='CustListBO'>
+	<![CDATA[
+		SELECT CUS_CODE , --거래처코드
+		       CUS_NAME   --거래처명
+		  FROM CUS_MASTER_MST
+		 WHERE BRANCH_CODE = #{BRANCH_CODE} --지점코드
+		 ORDER BY 1
+	]]>
+	</select>
+	
+	<select id="cusMaster.chkLogin" parameterType="Map" resultType="String">
+		<if test='USRKND eq "1" or USRKND eq "2"'>
+			<![CDATA[
+			SELECT CASE WHEN COUNT(*) <= 0 THEN 'N' ELSE 'Y' END
+			  FROM dbo.CUS_MASTER_MST
+			 WHERE 1             = 1
+			   AND BRANCH_CODE   = #{BRANCH_CODE}
+			   AND WEB_MEMBER_YN = 'Y'
+			   AND BUSS_NO       = LTRIM(RTRIM(#{BUSS_NO}))
+		   	   AND (WEB_PASSWORD = LTRIM(RTRIM(#{WEB_PASSWORD})) OR WEB_PASSWORD = LTRIM(RTRIM(#{SEED_WEB_PASSWORD}))) 
+			]]>
+		</if>
+			
+		<if test='USRKND eq "3"'>
+			<![CDATA[
+			SELECT CASE WHEN COUNT(*) <= 0 THEN 'N' ELSE 'Y' END
+			  FROM dbo.SYS_APPUSR_MST
+			 WHERE 1             = 1
+			   AND USERID        = LTRIM(RTRIM(#{BUSS_NO}))
+		   	   AND (WEB_PASSWORD = LTRIM(RTRIM(#{WEB_PASSWORD})) OR WEB_PASSWORD = LTRIM(RTRIM(#{SEED_WEB_PASSWORD}))) 
+			]]>
+		</if>
+	</select>
+	
+	<select id="cusMaster.selectCusMasterDetail" parameterType="Map" resultType="CusMasterMstBO">
+		<if test='USRKND eq "1" or USRKND eq "2"'>
+			SELECT   RTRIM(A.CUS_CODE)          AS CUS_CODE       --거래처코드
+			       , RTRIM(A.BRANCH_CODE)       AS BRANCH_CODE    --브랜치코드
+			       , #{USRKND}                  AS USRKND         --사용자구분
+			       , RTRIM(A.BUSS_NAME)         AS BUSS_NAME      --거래처명
+			       , A.REPR_NAME                AS REPR_NAME      --대표자명
+				   , CASE WHEN A.CUS_KIND ='2' AND A.REPR_CUS_YN = 0 THEN 'C'
+				          WHEN A.CUS_KIND ='2' AND A.REPR_CUS_YN = 1 THEN 'R'
+				          WHEN A.CUS_KIND ='3'                       THEN 'A'
+				          WHEN A.CUS_KIND ='4'                       THEN 'T'
+				    ELSE 'X'
+				    END CUS_GUBUN		       
+			       , CASE WHEN LEN(RTRIM(A.ZIP_NO)) = 6 THEN
+			                   '('+LEFT(A.ZIP_NO,3)+'-'+RIGHT(A.ZIP_NO,3)+') '+RTRIM(ISNULL(A.ADDR1,''))+' '+RTRIM(ISNULL(A.ADDR2,''))
+			              ELSE RTRIM(ISNULL(A.ADDR1,''))+' '+RTRIM(ISNULL(A.ADDR2,''))
+			         END                        AS ADDRESS        --주소
+			       , A.BUSS_NO                  AS BUSS_NO        --사업자번호
+			       , A.ETAX_RECVEMAIL           AS EMAIL          --이메일
+			       , A.RESMAN_TEL_NO            AS HP_NO          --휴대전화번호
+			       , A.CUS_KIND                 AS CUS_KIND       --거래처구분(1:매입거래처, 2:매출거래처, 3:딜러거래처, 4:차량배차거래처)
+			       , ISNULL(A.REPR_CUS_YN,0)    AS REPR_CUS_YN    --대표거래처여부
+			       , A.MNGR_EMP_CODE            AS MNGR_EMP_CODE  --관리담당자코드
+			       , C.MNGR_EMP_NAME            AS MNGR_EMP_NAME  --관리담당자명
+			       , C.HP_NO                    AS MNGR_HP_NO     --관리담당자_휴대폰번호
+			       , A.TRANS_CORP               AS TRANS_CORP     --운송회사
+			       , A.AGENT_CODE               AS AGENT_CODE     --알선업체(딜러)
+			       , B.BANK_NAME                AS BANK_NAME      --은행명
+			       , B.VRACCT_NO                AS VRACCT_NO      --계좌번호
+			       , CASE WHEN A.REPR_CUS_YN = 1 THEN dbo.GET_CUSCREDITLIMT(A.BRANCH_CODE, A.CUS_CODE)
+			              ELSE ISNULL(dbo.GET_CUSCREDITLIMT(A.BRANCH_CODE, A.CUS_CODE),0) -
+			                   (
+							   ISNULL(dbo.GET_CUSBNDINFO(A.BRANCH_CODE, A.CUS_CODE, 0, 1), 0) +
+							   ISNULL(dbo.GET_CUSBNDINFO(A.BRANCH_CODE, A.CUS_CODE, 0, 2), 0) - 
+							   ISNULL(dbo.GET_CUSBNDINFO(A.BRANCH_CODE, A.CUS_CODE, 0, 3), 0)
+							   ) END            AS CREDIT_LIMIT   --여신한도
+	               , A.WEB_PASSWORD             AS WEB_PASSWORD   --비밀번호
+	               , CONVERT(CHAR(20), GETDATE(), 120) AS LOGIN_DATE
+			  FROM   CUS_MASTER_MST A LEFT JOIN CUS_VRACCT_MST B ON (A.BRANCH_CODE = B.BRANCH_CODE AND A.CUS_CODE = B.CUS_CODE AND ISNULL(B.USE_YN, 'N') = 'Y')
+			                          LEFT JOIN SYS_MNGEMP_MST C ON (A.MNGR_EMP_CODE = C.MNGR_EMP_CODE AND ISNULL(C.SMS_RECV_YN, 'N') = 'Y')
+			 WHERE   A.BRANCH_CODE  =   #{BRANCH_CODE}            --지점코드
+			   AND   A.BUSS_NO      =   #{BUSS_NO}                --사업자번호(로그인ID)
+			   AND   ISNULL(A.WEB_MEMBER_YN, 'N') = 'Y'           --웹회원여부('Y':회원, 'N':비회원)
+		</if>
+		<if test='USRKND eq "3"'>
+			SELECT   RTRIM(A.USERID)            AS CUS_CODE       --거래처코드
+			       , ''                         AS BRANCH_CODE    --브랜치코드
+			       , #{USRKND}                  AS USRKND         --사용자구분
+			       , RTRIM(A.USER_NAME)         AS BUSS_NAME      --거래처명
+			       , ''                         AS REPR_NAME      --대표자명
+				   , 'C'                        AS CUS_GUBUN
+			       , ''                         AS ADDRESS        --주소
+			       , ''                         AS BUSS_NO        --사업자번호
+			       , ''                         AS EMAIL          --이메일
+			       , ''                         AS HP_NO          --휴대전화번호
+			       , ''                         AS CUS_KIND       --거래처구분(1:매입거래처, 2:매출거래처, 3:딜러거래처, 4:차량배차거래처)
+			       , ''                         AS REPR_CUS_YN    --대표거래처여부
+			       , ''                         AS MNGR_EMP_CODE  --관리담당자코드
+			       , ''                         AS MNGR_EMP_NAME  --관리담당자명
+			       , ''                         AS MNGR_HP_NO     --관리담당자_휴대폰번호
+			       , ''                         AS TRANS_CORP     --운송회사
+			       , ''                         AS AGENT_CODE     --알선업체(딜러)
+			       , ''                         AS BANK_NAME      --은행명
+			       , ''                         AS VRACCT_NO      --계좌번호
+			       , 0                          AS CREDIT_LIMIT   --여신한도
+				   , A.WEB_PASSWORD             AS WEB_PASSWORD   --비밀번호
+				   , CONVERT(CHAR(20), GETDATE(), 120) AS LOGIN_DATE
+			  FROM   SYS_APPUSR_MST A
+			 WHERE   A.USERID       =   #{BUSS_NO}                --사용자ID(로그인ID)
+		</if>
+	</select>
+
+	<select id="cusMaster.selectCusMasterDetail2" parameterType="Map" resultType="CusMasterMstBO">
+		SELECT   RTRIM(A.CUS_CODE)          AS CUS_CODE       --거래처코드
+		       , RTRIM(A.BUSS_NAME)         AS BUSS_NAME      --거래처명
+		       , A.REPR_NAME                AS REPR_NAME      --대표자명
+			   , CASE WHEN A.CUS_KIND ='2' AND A.REPR_CUS_YN = 0 THEN 'C'
+			          WHEN A.CUS_KIND ='2' AND A.REPR_CUS_YN = 1 THEN 'R'
+			          WHEN A.CUS_KIND ='3'                       THEN 'A'
+			          WHEN A.CUS_KIND ='4'                       THEN 'T'
+			    ELSE 'X'
+			    END CUS_GUBUN		       
+		       , CASE WHEN LEN(RTRIM(A.ZIP_NO)) = 6 THEN
+		                   '('+LEFT(A.ZIP_NO,3)+'-'+RIGHT(A.ZIP_NO,3)+') '+RTRIM(ISNULL(A.ADDR1,''))+' '+RTRIM(ISNULL(A.ADDR2,''))
+		              ELSE RTRIM(ISNULL(A.ADDR1,''))+' '+RTRIM(ISNULL(A.ADDR2,''))
+		         END                        AS ADDRESS        --주소
+		       , A.BUSS_NO                  AS BUSS_NO        --사업자번호
+		       , A.ETAX_RECVEMAIL           AS EMAIL          --이메일
+		       , A.RESMAN_TEL_NO            AS HP_NO          --휴대전화번호
+		       , A.CUS_KIND                 AS CUS_KIND       --거래처구분(1:매입거래처, 2:매출거래처, 3:딜러거래처, 4:차량배차거래처)
+		       , ISNULL(A.REPR_CUS_YN,0)    AS REPR_CUS_YN    --대표거래처여부
+		       , A.MNGR_EMP_CODE            AS MNGR_EMP_CODE  --관리담당자코드
+		       , C.MNGR_EMP_NAME            AS MNGR_EMP_NAME  --관리담당자명
+		       , C.HP_NO                    AS MNGR_HP_NO     --관리담당자_휴대폰번호
+		       , A.TRANS_CORP               AS TRANS_CORP     --운송회사
+		       , A.AGENT_CODE               AS AGENT_CODE     --알선업체(딜러)
+		       , B.BANK_NAME                AS BANK_NAME      --은행명
+		       , B.VRACCT_NO                AS VRACCT_NO      --계좌번호
+		       , CASE WHEN A.REPR_CUS_YN = 1 THEN dbo.GET_CUSCREDITLIMT(A.BRANCH_CODE, A.CUS_CODE)
+		              ELSE ISNULL(dbo.GET_CUSCREDITLIMT(A.BRANCH_CODE, A.CUS_CODE),0) -
+		                   (
+						   ISNULL(dbo.GET_CUSBNDINFO(A.BRANCH_CODE, A.CUS_CODE, 0, 1), 0) +
+						   ISNULL(dbo.GET_CUSBNDINFO(A.BRANCH_CODE, A.CUS_CODE, 0, 2), 0) - 
+						   ISNULL(dbo.GET_CUSBNDINFO(A.BRANCH_CODE, A.CUS_CODE, 0, 3), 0)
+						   ) END            AS CREDIT_LIMIT   --여신한도
+               , CASE WHEN A.BUSS_NO = A.WEB_PASSWORD THEN 'Y' ELSE 'N' END FIRSTLOGIN_YN
+               , CONVERT(CHAR(20), GETDATE(), 120) AS LOGIN_DATE
+		  FROM   CUS_MASTER_MST A LEFT JOIN CUS_VRACCT_MST B ON (A.BRANCH_CODE = B.BRANCH_CODE AND A.CUS_CODE = B.CUS_CODE AND ISNULL(B.USE_YN, 'N') = 'Y')
+		                          LEFT JOIN SYS_MNGEMP_MST C ON (A.MNGR_EMP_CODE = C.MNGR_EMP_CODE AND ISNULL(C.SMS_RECV_YN, 'N') = 'Y')
+		 WHERE   A.BRANCH_CODE  =   #{BRANCH_CODE}                     --지점코드
+	       AND   A.CUS_CODE     =   #{CUS_CODE}
+	</select>
+			
+	<update id="cusMaster.updateNewPass" parameterType="Map">
+		<if test='USRKND eq "1" or USRKND eq "2"'>
+			UPDATE dbo.CUS_MASTER_MST
+			   SET WEB_PASSWORD = #{NEW_WEB_PASSWORD}
+			 WHERE 1             = 1
+			   AND BRANCH_CODE   = #{BRANCH_CODE}
+			   AND WEB_MEMBER_YN = 'Y'
+			   AND BUSS_NO       = LTRIM(RTRIM(#{BUSS_NO}))
+		</if>
+		
+		<if test='USRKND eq "3"'>
+			UPDATE dbo.SYS_APPUSR_MST
+			   SET WEB_PASSWORD = #{NEW_WEB_PASSWORD}
+			 WHERE 1             = 1
+			   AND USERID       = LTRIM(RTRIM(#{BUSS_NO}))
+		</if>
+	</update>
+
+	
+</mapper>

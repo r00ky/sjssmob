@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="trans">
+
+	<select id="selectTransSettingListCnt" parameterType="Map" resultType="String">
+		SELECT  COUNT(*) AS CNT
+		  FROM  APR_ONLINE_ODR A
+		 WHERE  A.TRANS_CORP   = #{TRANS_CORP}
+		<if test='S_ORDER_STAT neq null and S_ORDER_STAT neq "null" and S_ORDER_STAT neq ""'>
+		<![CDATA[
+			AND A.ORDER_STAT = #{S_ORDER_STAT}
+		]]>
+		</if>
+		<if test='S_GOOD_CODE neq null and S_GOOD_CODE neq "null" and S_GOOD_CODE neq ""'>
+		<![CDATA[
+			AND A.GOOD_CODE = #{S_GOOD_CODE}
+		]]>
+		</if>
+		<if test='S_ORDER_DATE1 neq null and S_ORDER_DATE1 neq "null" and S_ORDER_DATE1 neq ""'>
+		<![CDATA[
+			AND A.ORDER_DATE >=  #{S_ORDER_DATE1}
+		]]>
+		</if>
+		<if test='S_ORDER_DATE2 neq null and S_ORDER_DATE2 neq "null" and S_ORDER_DATE2 neq ""' >
+		<![CDATA[
+			AND A.ORDER_DATE <=  #{S_ORDER_DATE2}
+		]]>
+		</if>
+		<if test='S_SHIP_RQST_DATE1 neq null and S_SHIP_RQST_DATE1 neq "null" and S_SHIP_RQST_DATE1 neq ""'>
+		<![CDATA[
+			AND A.SHIP_RQST_DATE >=  #{S_SHIP_RQST_DATE1}
+		]]>
+		</if>
+		<if test='S_SHIP_RQST_DATE2 neq null and S_SHIP_RQST_DATE2 neq "null" and S_SHIP_RQST_DATE2 neq ""'>
+		<![CDATA[
+			AND A.SHIP_RQST_DATE <=  #{S_SHIP_RQST_DATE2}
+		]]>
+		</if>
+	</select>
+
+
+	<select id="selectTransSettingList" parameterType="Map" resultType="TransSettingBO">
+		SELECT *
+		  FROM (
+			SELECT
+				    ROW_NUMBER() OVER(order by A.ORDER_IDX ASC ) AS RowNum 
+			      , A.ORDER_IDX              AS ORDER_IDX        --주문번호
+			      , LEFT(A.ORDER_DATE,4)+'-'+SUBSTRING(A.ORDER_DATE,5,2)+'-'+RIGHT(A.ORDER_DATE,2)
+			                                 AS ORDER_DATE       --주문입력일
+		          , A.ORDER_STAT             AS STAT_CODE        --상태코드
+		          , ISNULL(I.COMM_NAME , '') AS STAT_NAME        --상태명
+			      , LEFT(A.SHIP_RQST_DATE,4)+'-'+SUBSTRING(A.SHIP_RQST_DATE,5,2)+'-'+RIGHT(A.SHIP_RQST_DATE,2)
+			                                 AS SHIP_RQST_DATE   --출하요청일
+			      , ISNULL(B.CUS_NAME  , '') AS DELV_CUS_NAME    --납품거래처
+			      , ISNULL(G.RESMAN_TEL_NO, '') AS DELV_CUS_TELNO --거래처담당자전화번호
+			      , ISNULL(B.ADDR1     , '') AS AREA_NAME        --지역명
+			      , ISNULL(C.COMM_NAME , '') AS GOOD_NAME        --제품명
+			      , '리터'                   AS UNIT_NAME        --단위
+			      , ISNULL(A.DEAL_QTY  ,  0) AS DEAL_QTY         --주문량
+			      , A.SHIP_FLAG              AS SHIP_FLAG        --출하구분코드
+			      , ISNULL(H.COMM_NAME , '') AS SHIP_NAME        --출하구분명
+			      , CASE WHEN A.SHIP_FLAG = '1' THEN
+			                  A.NAB_CODE
+			             ELSE
+			                  A.SPO_CODE
+			        END                      AS NAB_CODE         --출하지코드			      
+			      , CASE WHEN A.SHIP_FLAG = '1' THEN
+			                  ISNULL(D.COMM_NAME , '')
+			             ELSE
+			                  ISNULL(E.COMM_NAME , '')
+			        END                      AS NAB_NAME         --출하지명
+			      , A.CAR_NO                 AS CAR_NO           --차량번호
+			      , ISNULL(F.CAR_NAME  , '') AS CAR_NAME         --차량명
+			      , A.DRIVER_NAME            AS DRIVER_NAME      --기사명
+			      , A.HP_NO                  AS HP_NO            --전화번호
+			      , A.REMARK                 AS REMARK           --비고
+			      , ISNULL(J.COMM_NAME , '') AS ARRIVE_NAME      --인도조건
+			      , (SELECT Z.HP_NO
+			           FROM SYS_MNGEMP_MST Z
+			          WHERE Z.MNGR_EMP_CODE = G.MNGR_EMP_CODE
+			            AND Z.SMS_RECV_YN   = 'Y')
+			                                 AS MNGR_EMP_HP_NO   --관리담당자_휴대폰번호
+			  FROM  APR_ONLINE_ODR A LEFT JOIN CUS_BUYTRN_MST B ON (A.BRANCH_CODE = B.BRANCH_CODE AND A.DELV_CUS_CODE = B.TRANS_CUS_CODE)
+			                         LEFT JOIN SYS_COMMON_COD C ON (A.GOOD_CODE = C.COMM_CODE AND C.GRP_CODE = 'GOODCD')
+			                         LEFT JOIN SYS_COMMON_COD D ON (A.NAB_CODE = D.COMM_CODE AND D.GRP_CODE = 'NABCOD')
+			                         LEFT JOIN SYS_COMMON_COD E ON (A.SPO_CODE = E.COMM_CODE AND E.GRP_CODE = 'SPOCOD')
+			                         LEFT JOIN SYS_TCARNO_MST F ON (A.CAR_NO = F.CAR_NO)
+			                         LEFT JOIN CUS_MASTER_MST G ON (A.BRANCH_CODE = G.BRANCH_CODE AND A.CUS_CODE = G.CUS_CODE)
+			                         LEFT JOIN SYS_COMMON_COD H ON (A.SHIP_FLAG = H.COMM_CODE AND H.GRP_CODE = 'SHPFLG')
+		                             LEFT JOIN SYS_COMMON_COD I ON (A.ORDER_STAT = I.COMM_CODE AND I.GRP_CODE = 'ORDSTS')
+		                             LEFT JOIN SYS_COMMON_COD J ON (A.ARRIVE_SEC = J.COMM_CODE AND J.GRP_CODE = 'ARVSEC')
+			WHERE  A.TRANS_CORP   = #{TRANS_CORP}
+			<if test='S_ORDER_STAT neq null and S_ORDER_STAT neq "null" and S_ORDER_STAT neq ""'>
+			<![CDATA[
+				AND A.ORDER_STAT = #{S_ORDER_STAT}
+			]]>
+			</if>
+			<if test='S_GOOD_CODE neq null and S_GOOD_CODE neq "null" and S_GOOD_CODE neq ""'>
+			<![CDATA[
+				AND A.GOOD_CODE = #{S_GOOD_CODE}
+			]]>
+			</if>
+			<if test='S_ORDER_DATE1 neq null and S_ORDER_DATE1 neq "null" and S_ORDER_DATE1 neq ""'>
+			<![CDATA[
+				AND A.ORDER_DATE >=  #{S_ORDER_DATE1}
+			]]>
+			</if>
+			<if test='S_ORDER_DATE2 neq null and S_ORDER_DATE2 neq "null" and S_ORDER_DATE2 neq ""' >
+			<![CDATA[
+				AND A.ORDER_DATE <=  #{S_ORDER_DATE2}
+			]]>
+			</if>
+			<if test='S_SHIP_RQST_DATE1 neq null and S_SHIP_RQST_DATE1 neq "null" and S_SHIP_RQST_DATE1 neq ""'>
+			<![CDATA[
+				AND A.SHIP_RQST_DATE >=  #{S_SHIP_RQST_DATE1}
+			]]>
+			</if>
+			<if test='S_SHIP_RQST_DATE2 neq null and S_SHIP_RQST_DATE2 neq "null" and S_SHIP_RQST_DATE2 neq ""'>
+			<![CDATA[
+				AND A.SHIP_RQST_DATE <=  #{S_SHIP_RQST_DATE2}
+			]]>
+			</if>			                         
+			<if test='ORDER_IDX neq null and ORDER_IDX neq "null" and ORDER_IDX neq ""' >
+			<![CDATA[
+				AND A.ORDER_IDX =  #{ORDER_IDX}
+			]]>
+			</if>			
+	   	) AS A
+	   	WHERE RowNum BETWEEN #{searchRangeStart} AND #{searchRangeEnd}
+		ORDER BY 2 DESC
+	</select>
+
+
+	<update id="updateCarInfo" parameterType="Map" >
+	<![CDATA[
+		UPDATE  APR_ONLINE_ODR SET
+		        CAR_NO         =  #{CAR_NO}         --차량번호
+		      , DRIVER_NAME    =  #{DRIVER_NAME}    --운전자명
+		      , HP_NO          =  #{DRIVER_HP_NO}   --휴대폰번호
+		      , UPT_USER_ID    =  'MOB'             --변경자ID
+		      , DATA_UPT_DATE  =  GETDATE()         --자료변경일시
+		 WHERE  ORDER_IDX      =  #{ORDER_IDX}
+	]]>
+	</update>
+
+
+</mapper>

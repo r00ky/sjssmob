@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN" "HTTP://mybatis.org/dtd/mybatis-3-config.dtd">
+
+<configuration>
+  <settings>
+    	<setting name="mapUnderscoreToCamelCase" value="true" />
+  </settings>
+
+	<typeAliases>
+		<typeAlias alias="ExampleBO"  		type="com.apcmob.object.ExampleBO" />
+		
+		<typeAlias alias="CommCodeBO"    	type="com.apcmob.object.CommCodeBO" />
+		
+		<typeAlias alias="CusMasterMstBO"   type="com.apcmob.object.CusMasterMstBO" />
+		<typeAlias alias="BranchCodeBO"     type="com.apcmob.object.BranchCodeBO" />
+		<typeAlias alias="OrderStatusBO"    type="com.apcmob.object.OrderStatusBO" />
+		<typeAlias alias="DelvCustBO"       type="com.apcmob.object.DelvCustBO" />
+		<typeAlias alias="CusCreditBO"      type="com.apcmob.object.CusCreditBO" />
+		<typeAlias alias="CarNoBO"          type="com.apcmob.object.CarNoBO" />
+		<typeAlias alias="OrderCostBO"      type="com.apcmob.object.OrderCostBO" />
+		<typeAlias alias="OrderSheetBO"     type="com.apcmob.object.OrderSheetBO" />
+		<typeAlias alias="OrderSheetSumBO"  type="com.apcmob.object.OrderSheetSumBO" />
+		<typeAlias alias="TransSettingBO"   type="com.apcmob.object.TransSettingBO" />
+		<typeAlias alias="FinishSheet1"     type="com.apcmob.object.FinishSheet1" />
+		<typeAlias alias="FinishSheet2"     type="com.apcmob.object.FinishSheet2" />
+		<typeAlias alias="FinishSheet3"     type="com.apcmob.object.FinishSheet3" />
+		<typeAlias alias="CustListBO"       type="com.apcmob.object.CustListBO" />
+		<typeAlias alias="GraphBO1"         type="com.apcmob.object.GraphBO1" />
+		<typeAlias alias="GraphBO2"         type="com.apcmob.object.GraphBO2" />
+		<typeAlias alias="GraphBO3"         type="com.apcmob.object.GraphBO3" />
+		<typeAlias alias="GraphBO4"         type="com.apcmob.object.GraphBO4" />
+		<typeAlias alias="SmsBO"            type="com.apcmob.object.SmsBO" />
+		<typeAlias alias="AgentCustBO"      type="com.apcmob.object.AgentCustBO" />
+		<typeAlias alias="ReprCustBO"       type="com.apcmob.object.ReprCustBO" />		
+	</typeAliases>
+
+
+	<mappers>
+		<mapper resource="sqlmap/sql/example.xml" />
+
+		<mapper resource="sqlmap/sql/common.xml" />
+		<mapper resource="sqlmap/sql/cusMaster.xml" />
+		<mapper resource="sqlmap/sql/order.xml" />
+		<mapper resource="sqlmap/sql/trans.xml" />
+		<mapper resource="sqlmap/sql/finish.xml" />
+		<mapper resource="sqlmap/sql/graph.xml" />
+	</mappers>
+</configuration>

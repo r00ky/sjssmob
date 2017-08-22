@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="finish">
+
+	<select id='selectFinishSheet1' parameterType='Map' resultType='FinishSheet1'>
+	<![CDATA[
+        WITH TMP_DATA AS
+		(SELECT A.GOOD_CODE                           AS GOOD_CODE, --상품코드
+		        dbo.GET_COMMCODE('GOODCD', GOOD_CODE) AS GOOD_NAME, --상품명
+		        0                                     AS OPEN_QTY,  --전일재고
+		        ISNULL(SUM(A.TAX_PUR + A.NTAX_PUR + A.OTHER_PUR + A.INTL_REPT + A.INTL_NTAX),0)                  AS IN_QTY,   --입고
+		        ISNULL(SUM(A.INTL_TRANS + A.INTL_NTRANS + A.SALES_QTY + A.NSALES_QTY + A.OWN_HIT + A.OWN_CAR),0) AS OUT_QTY,  --출고
+		        ISNULL(SUM(A.LOSS_GAIN),0)                                                                       AS LOSS_QTY, --증감량
+		        0                                     AS CLOSE_QTY  --장부재고
+		  FROM  DAY_GOODIO_BLC A
+		  WHERE A.DEAL_DATE BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		  AND   A.BRANCH_CODE       =   #{BRANCH_CODE}
+		  AND   A.GOOD_CODE BETWEEN '1001' AND '3000'
+		  AND   (   A.TAX_PUR       <> 0
+		  OR        A.NTAX_PUR      <> 0
+		  OR        A.OTHER_PUR     <> 0
+		  OR        A.INTL_REPT     <> 0
+		  OR        A.INTL_NTAX     <> 0
+		  OR        A.INTL_TRANS    <> 0
+		  OR        A.INTL_NTRANS   <> 0
+		  OR        A.SALES_QTY     <> 0
+		  OR        A.NSALES_QTY    <> 0
+		  OR        A.OWN_HIT       <> 0
+		  OR        A.OWN_CAR       <> 0
+		  OR        A.LOSS_GAIN     <> 0
+		  OR        A.OPEN_INV      <> 0 )
+		  GROUP BY A.GOOD_CODE )
+	    SELECT A.*
+	      FROM
+	    (
+			SELECT  AA.GOOD_CODE                   AS GOOD_CODE        --정렬하기위한KEY(조회항목 아님)
+			      , AA.GOOD_NAME                   AS GOOD_NAME        --유종
+			      , ISNULL(SUM(BB.OPEN_INV),0)     AS OPEN_QTY         --전일재고
+			      , AA.IN_QTY                      AS IN_QTY           --입고
+			      , AA.OUT_QTY                     AS OUT_QTY          --출고
+			      , AA.LOSS_QTY                    AS LOSS_QTY         --증감량
+			      , ISNULL(SUM(BB.OPEN_INV),0) + AA.IN_QTY - AA.OUT_QTY  AS CLOSE_QTY  --장부재고
+			  FROM  TMP_DATA AA LEFT JOIN DAY_GOODIO_BLC BB ON (BB.DEAL_DATE = #{FROM_DATE} AND BB.BRANCH_CODE = '300' AND AA.GOOD_CODE = BB.GOOD_CODE)
+			 GROUP BY
+			       AA.GOOD_CODE
+			     , AA.GOOD_NAME
+			     , AA.IN_QTY
+			     , AA.OUT_QTY
+			     , AA.LOSS_QTY
+	     ) A
+		 ORDER BY 1
+	]]>
+	</select>
+
+	<select id='selectFinishSheet2' parameterType='Map' resultType='FinishSheet2'>
+	<![CDATA[
+		SELECT A.GOOD_CODE                                                                            AS GOOD_CODE , -- 상품코드
+		       dbo.GET_COMMCODE('GOODCD', GOOD_CODE)                                                  AS GOOD_NAME , -- 상품명
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '99' THEN A.DEAL_QTY ELSE 0 END),0)                  AS CASH_QTY  , -- 현금판매수량
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '99' THEN A.DEAL_AMT ELSE 0 END),0)                  AS CASH_AMT  , -- 현금판매금액
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE NOT IN ('99','04','05') THEN A.DEAL_QTY ELSE 0 END),0) AS BLC_QTY   , -- 외상판매수량
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE NOT IN ('99','04','05') THEN A.DEAL_AMT ELSE 0 END),0) AS BLC_AMT   , -- 외상판매금액
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '05' THEN A.DEAL_QTY ELSE 0 END),0)                  AS TCK_QTY   , -- 상품권판매수량
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '05' THEN A.DEAL_AMT ELSE 0 END),0)                  AS TCK_AMT   , -- 상품권판매금액
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '04' THEN A.DEAL_QTY ELSE 0 END),0)                  AS CRDT_QTY  , -- 신용카드수량
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '04' THEN A.DEAL_AMT ELSE 0 END),0)                  AS CRDT_AMT  , -- 신용카드금액
+		       ISNULL(SUM(A.DEAL_QTY),0)                                                              AS SUM_QTY   , -- 판매합계수량
+		       ISNULL(SUM(A.DEAL_AMT),0)                                                              AS SUM_AMT     -- 판매합계금액
+		  FROM APR_DEALTR_TRN A, CUS_MASTER_MST B
+		 WHERE A.DEAL_DATE BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		   AND A.BRANCH_CODE       =   #{BRANCH_CODE}
+           AND A.SLIP_FLAG     IN   ('31', '34')
+		   AND A.GOOD_CODE < '3001'
+		   AND A.BRANCH_CODE   =   B.BRANCH_CODE
+		   AND A.CUS_CODE      =   B.CUS_CODE
+		 GROUP BY A.GOOD_CODE
+		UNION ALL
+		SELECT '9999'                                                                                  AS GOOD_CODE , -- 상품코드
+		       '기타'                                                                                  AS GOOD_NAME , -- 상품명
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '99' THEN A.DEAL_QTY ELSE 0 END),0)                   AS CASH_QTY  , -- 현금판매수량
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '99' THEN A.DEAL_AMT ELSE 0 END),0)                   AS CASH_AMT  , -- 현금판매금액
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE NOT IN ('99','04','05') THEN A.DEAL_QTY ELSE 0 END),0)  AS BLC_QTY   , -- 외상판매수량
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE NOT IN ('99','04','05') THEN A.DEAL_AMT ELSE 0 END),0)  AS BLC_AMT   , -- 외상판매금액
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '05' THEN A.DEAL_QTY ELSE 0 END),0)                   AS TCK_QTY   , -- 상품권판매수량
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '05' THEN A.DEAL_AMT ELSE 0 END),0)                   AS TCK_AMT   , -- 상품권판매금액
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '04' THEN A.DEAL_QTY ELSE 0 END),0)                   AS CRDT_QTY  , -- 신용카드수량
+		       ISNULL(SUM(CASE WHEN B.CUS_TYPE = '04' THEN A.DEAL_AMT ELSE 0 END),0)                   AS CRDT_AMT  , -- 신용카드금액
+		       ISNULL(SUM(A.DEAL_QTY),0)                                                               AS SUM_QTY   , -- 판매합계수량
+		       ISNULL(SUM(A.DEAL_AMT),0)                                                               AS SUM_AMT     -- 판매합계금액
+		  FROM APR_DEALTR_TRN A, CUS_MASTER_MST B
+		 WHERE A.DEAL_DATE BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		   AND A.BRANCH_CODE       =   #{BRANCH_CODE}
+           AND A.SLIP_FLAG     IN   ('31', '34')
+		   AND A.GOOD_CODE > '3000'
+		   AND A.BRANCH_CODE   =   B.BRANCH_CODE
+		   AND A.CUS_CODE      =   B.CUS_CODE
+		 GROUP BY A.GOOD_CODE
+		 ORDER BY 1
+	]]>
+	</select>
+	
+	<select id='selectFinishSheet3' parameterType='Map' resultType='FinishSheet3'>
+	<![CDATA[
+        WITH TMP_DATA AS
+		(SELECT   '1'                                                                     AS DATA_KEY ,  -- 출력순서
+		         '외상채권'                                                                  AS DATA_NAME,  -- 데이터구분
+		         AVG(dbo.GET_SUMCUSBLCAMT(#{FROM_DATE}, #{BRANCH_CODE}, 1))               AS OPEN_AMT ,  -- 전일잔액
+		         ISNULL(SUM(A.CURR_SALE_AMT),0)                                           AS IN_AMT   ,  -- 매출액
+		         ISNULL(SUM(A.CURR_CASH_RECV + A.CURR_NOTE_RECV - A.CURR_NOTE_SETTLE),0)  AS OUT_AMT     -- 입금액
+		  FROM   DAY_CUSBND_BLC A,
+		         CUS_MASTER_MST B
+		 WHERE   A.DEAL_DATE BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		   AND   A.BRANCH_CODE       =   #{BRANCH_CODE}
+		   AND   A.BRANCH_CODE       =   B.BRANCH_CODE
+		   AND   A.CUS_CODE          =   B.CUS_CODE
+		   AND   B.CUS_TYPE          NOT IN  ('04')
+		UNION ALL
+		SELECT   '2'                                                                      AS DATA_KEY   ,  -- 출력순서
+		         '신용카드'                                                                  AS DATA_NAME  ,  -- 데이터구분
+		         AVG(dbo.GET_SUMCUSBLCAMT(#{FROM_DATE}, #{BRANCH_CODE}, 2))               AS OPEN_AMT ,  -- 전일잔액
+		         ISNULL(SUM(A.CURR_SALE_AMT),0)                                           AS IN_AMT     ,  -- 매출액
+		         ISNULL(SUM(A.CURR_CASH_RECV + A.CURR_NOTE_RECV - A.CURR_NOTE_SETTLE),0)  AS OUT_AMT       -- 입금액
+		  FROM   DAY_CUSBND_BLC A,
+		         CUS_MASTER_MST B
+		 WHERE   A.DEAL_DATE BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		   AND   A.BRANCH_CODE       =   #{BRANCH_CODE}
+		   AND   A.BRANCH_CODE       =   B.BRANCH_CODE
+		   AND   A.CUS_CODE          =   B.CUS_CODE
+		   AND   B.CUS_TYPE          IN  ('04')
+		UNION ALL
+		SELECT   '3'                                                                      AS DATA_KEY   ,  -- 출력순서
+		         '채권합계'                                                                  AS DATA_NAME  ,  -- 데이터구분
+		         AVG(dbo.GET_SUMCUSBLCAMT(#{FROM_DATE}, #{BRANCH_CODE}, 3))               AS OPEN_AMT ,  -- 전일잔액
+		         ISNULL(SUM(A.CURR_SALE_AMT),0)                                           AS IN_AMT     ,  -- 매출액
+		         ISNULL(SUM(A.CURR_CASH_RECV + A.CURR_NOTE_RECV - A.CURR_NOTE_SETTLE),0)  AS OUT_AMT       -- 입금액
+		  FROM   DAY_CUSBND_BLC A,
+		         CUS_MASTER_MST B
+		 WHERE   A.DEAL_DATE BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		   AND   A.BRANCH_CODE       =   #{BRANCH_CODE}
+		   AND   A.BRANCH_CODE       =   B.BRANCH_CODE
+           AND   A.CUS_CODE          =   B.CUS_CODE )
+	    SELECT A.*
+	      FROM
+	    (
+			SELECT  AA.DATA_KEY                    AS DATA_KEY         --출력순서(조회항목 아님)
+			      , AA.DATA_NAME                   AS DATA_NAME        --데이터구분
+			      , AA.OPEN_AMT                    AS OPEN_AMT         --전일잔액
+			      , AA.IN_AMT                      AS IN_AMT           --매출액
+			      , AA.OUT_AMT                     AS OUT_AMT          --입금액
+			      , AA.OPEN_AMT + AA.IN_AMT - AA.OUT_AMT  AS CLOSE_AMT --당일잔액
+			  FROM  TMP_DATA AA
+	     ) A
+		 ORDER BY 1
+	]]>
+	</select>
+	
+</mapper>

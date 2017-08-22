@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="common">
+
+	<select id="common.selectLastIdx" parameterType="Map" resultType="String">
+		SELECT IDENT_CURRENT(#{TABLE}) IDX
+	</select>
+
+
+	<select id="common.selectCommCode" parameterType="Map" resultType="CommCodeBO">
+		SELECT RTRIM(COMM_CODE) AS COMM_CODE
+		      ,RTRIM(COMM_NAME) AS COMM_NAME
+		  FROM SYS_COMMON_COD
+		 WHERE 1 = 1
+		   AND GRP_CODE  = #{GRP_CODE}
+		    <if test='GRP_CODE neq null and GRP_CODE neq "null" and GRP_CODE eq "GOODCD"'>
+		    	AND COMM_CODE IN ('1001', '1004', '1028', '1036', '1039', '2000', '2005', '2010')
+		    </if>
+		 ORDER BY 1
+	</select>
+	
+	<select id="selectNoticeCost" parameterType="Map" resultType="String">
+	<![CDATA[
+		SELECT   '[가격공지]' + convert(char(8), getdate(),11) + '단가(리터) '
+		         + '휘발유('+ replace(convert(varchar,convert(money,dbo.GET_GOODPRICE(CONVERT(CHAR(8), GETDATE(), 112), #{BRANCH_CODE}, #{CUS_CODE},     #{BRAND_CODE}, '1004', '1','ALL', 3)),1),'.00','') + ') '
+		         + '경유('+ replace(convert(varchar,convert(money,dbo.GET_GOODPRICE(CONVERT(CHAR(8), GETDATE(), 112), #{BRANCH_CODE}, #{CUS_CODE},     #{BRAND_CODE}, '1036', '1','ALL', 3)),1),'.00','') + ') '
+		         + '등유('+ replace(convert(varchar,convert(money,dbo.GET_GOODPRICE(CONVERT(CHAR(8), GETDATE(), 112), #{BRANCH_CODE}, #{CUS_CODE},     #{BRAND_CODE}, '1028', '1','ALL', 3)),1),'.00','') + ') ' AS GOOD_PRICE   --가격공지
+		  FROM   DB_DUAL
+	]]>
+	</select>	
+	
+	
+	<select id="selectNormalNotice" parameterType="Map" resultType="String">
+	<![CDATA[	
+		WITH #tmpTable AS
+		(
+		    SELECT 
+		           ROW_NUMBER() OVER(order by IDX DESC ) AS RowNum
+		          --,CASE WHEN LEN(CONTENTS)>50 THEN SUBSTRING(CONTENTS,0,50) + '...' ELSE CONTENTS END CONTENTS
+		          ,CONTENTS AS CONTENTS
+		      FROM dbo.CNS_NOTICE A
+		)
+		SELECT CONTENTS
+		  FROM #tmpTable
+		 WHERE RowNum <= 1	
+	]]>
+	</select>			 
+</mapper>

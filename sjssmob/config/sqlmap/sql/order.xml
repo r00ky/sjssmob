@@ -1,0 +1,883 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="order">
+
+
+	<select id="selectOrderStatusListCnt" parameterType="Map" resultType="String">
+		SELECT COUNT(*)
+		  FROM APR_ONLINE_ODR A LEFT JOIN CUS_BUYTRN_MST B ON (A.BRANCH_CODE = B.BRANCH_CODE AND A.DELV_CUS_CODE = B.TRANS_CUS_CODE)
+		 WHERE A.BRANCH_CODE =  #{BRANCH_CODE}
+		<if test='CUS_GUBUN neq null and CUS_GUBUN neq "null" and CUS_GUBUN eq "C"'>
+		   AND A.CUS_CODE = #{CUS_CODE}
+		   AND A.CUS_CODE IN (SELECT CUS_CODE
+                      			  FROM CUS_MASTER_MST
+                       		     WHERE BRANCH_CODE = #{BRANCH_CODE})
+	   </if>
+		<if test='CUS_GUBUN neq null and CUS_GUBUN neq "null" and CUS_GUBUN eq "A"'>
+  			AND  A.CUS_CODE IN (SELECT CUS_CODE
+                      			  FROM CUS_MASTER_MST
+                       		     WHERE BRANCH_CODE = #{BRANCH_CODE}
+                         		   AND AGENT_CODE  = #{AGENT_CODE}
+                         		   AND CUS_CODE   LIKE '%' + #{S_CUS_CODE} + '%'
+                         		   )
+	   </if>
+		<if test='CUS_GUBUN neq null and CUS_GUBUN neq "null" and CUS_GUBUN eq "R"'>
+  			AND  A.CUS_CODE IN (SELECT CUS_CODE
+                      			  FROM CUS_REPRST_MST
+                       		     WHERE BRANCH_CODE = #{BRANCH_CODE}
+                         		   AND REPR_CUS_CODE  = #{CUS_CODE}
+                         		   AND CUS_CODE   LIKE '%' + #{S_CUS_CODE} + '%'
+                         		   )
+	   </if>
+		<if test='S_ORDER_STAT neq null and S_ORDER_STAT neq "null" and S_ORDER_STAT neq ""'>
+		<![CDATA[
+			AND A.ORDER_STAT = #{S_ORDER_STAT}
+		]]>
+		</if>	
+		<if test='S_ORDER_DATE1 neq null and S_ORDER_DATE1 neq "null" and S_ORDER_DATE1 neq ""'>
+		<![CDATA[
+			AND A.SHIP_RQST_DATE >=  #{S_ORDER_DATE1}
+		]]>
+		</if>
+		<if test='S_ORDER_DATE2 neq null and S_ORDER_DATE2 neq "null" and S_ORDER_DATE2 neq ""' >
+		<![CDATA[
+			AND A.SHIP_RQST_DATE <=  #{S_ORDER_DATE2}
+		]]>
+		</if>
+		<if test='S_CUS_NAME neq null and S_CUS_NAME neq "null" and S_CUS_NAME neq ""' >
+		<![CDATA[
+			AND ISNULL(B.CUS_NAME, '') LIKE #{S_CUS_NAME} + '%'
+		]]>
+		</if>		
+	</select>
+
+
+	<select id="selectOrderStatusList" parameterType="Map" resultType="OrderStatusBO">
+	    WITH #tmpTable AS
+        (	
+		SELECT
+				ROW_NUMBER() OVER(order by ORDER_IDX DESC ) AS RowNum
+			  , A.ORDER_IDX              AS ORDER_IDX        --주문번호
+		      , LEFT(A.ORDER_DATE,4)+'-'+SUBSTRING(A.ORDER_DATE,5,2)+'-'+RIGHT(A.ORDER_DATE,2)
+		                                 AS ORDER_DATE       --주문입력일
+		      , LEFT(A.SHIP_RQST_DATE,4)+'-'+SUBSTRING(A.SHIP_RQST_DATE,5,2)+'-'+RIGHT(A.SHIP_RQST_DATE,2)
+		                                 AS SHIP_RQST_DATE   --출하요청일
+		      , ISNULL(B.CUS_NAME  , '') AS DELV_CUS_NAME    --납품거래처
+		      , ISNULL(J.COMM_NAME , '') AS BRAND_DIVISION_NAME --상표구분
+		      , ISNULL(C.COMM_NAME , '') AS GOOD_NAME        --제품명
+		      , '리터'                   AS UNIT_NAME         --단위
+		      , ISNULL(A.DEAL_QTY  ,  0) AS DEAL_QTY         --주문량
+		      , ISNULL(A.SALE_PRICE,  0) AS SALE_PRICE       --매출단가
+		      , ISNULL(A.SALE_AMT  ,  0) AS SALE_AMT         --매출금액
+		      , ISNULL(A.DEAL_PRICE,  0) AS DEAL_PRICE       --거래단가
+		      , ISNULL(A.DEAL_AMT  ,  0) AS DEAL_AMT         --거래금액
+		      , ISNULL(D.COMM_NAME , '') AS ARRIVE_NAME      --인도조건
+		      , ISNULL(E.COMM_NAME , '') AS SHIP_NAME        --출하구분
+		      , CASE WHEN A.SHIP_FLAG = '1' THEN
+		                  ISNULL(F.COMM_NAME , '')
+		             ELSE
+		                  ISNULL(G.COMM_NAME , '')
+		        END                      AS NAB_NAME         --출하지
+		      , ISNULL(H.CAR_NAME  , '') AS CAR_NAME         --차량번호
+		      , ISNULL(A.SALE_TRANS_PRI,  0) AS SALE_TRANS_PRI --수송단가
+		      , ISNULL(A.SALE_TRANS_AMT,  0) AS SALE_TRANS_AMT --수송금액
+		      , ISNULL(I.COMM_NAME , '') AS STAT_NAME        --상태
+		      , A.ORDER_STAT             AS ORDER_STAT       --상태코드
+		      , A.REMARK                 AS REMARK           --비고
+		      , A.DRIVER_NAME            AS DRIVER_NAME      --운전자명
+		      , A.HP_NO                  AS HP_NO            --운전자_휴대폰번호
+		 FROM   APR_ONLINE_ODR A LEFT JOIN CUS_BUYTRN_MST B ON (A.BRANCH_CODE = B.BRANCH_CODE AND A.DELV_CUS_CODE = B.TRANS_CUS_CODE)
+		                         LEFT JOIN SYS_COMMON_COD C ON (A.GOOD_CODE = C.COMM_CODE AND C.GRP_CODE = 'GOODCD')
+		                         LEFT JOIN SYS_COMMON_COD D ON (A.ARRIVE_SEC = D.COMM_CODE AND D.GRP_CODE = 'ARVSEC')
+		                         LEFT JOIN SYS_COMMON_COD E ON (A.SHIP_FLAG = E.COMM_CODE AND E.GRP_CODE = 'SHPFLG')
+		                         LEFT JOIN SYS_COMMON_COD F ON (A.NAB_CODE = F.COMM_CODE AND F.GRP_CODE = 'NABCOD')
+		                         LEFT JOIN SYS_COMMON_COD G ON (A.SPO_CODE = G.COMM_CODE AND G.GRP_CODE = 'SPOCOD')
+		                         LEFT JOIN SYS_TCARNO_MST H ON (A.CAR_NO = H.CAR_NO)
+		                         LEFT JOIN SYS_COMMON_COD I ON (A.ORDER_STAT = I.COMM_CODE AND I.GRP_CODE = 'ORDSTS')
+		                         LEFT JOIN SYS_COMMON_COD J ON (A.BRAND_DIVISION = J.COMM_CODE AND J.GRP_CODE = 'BRDDIV')
+		 WHERE  A.BRANCH_CODE = #{BRANCH_CODE}
+		<if test='CUS_GUBUN neq null and CUS_GUBUN neq "null" and CUS_GUBUN eq "C"'>
+		   AND A.CUS_CODE = #{CUS_CODE}
+		   AND A.CUS_CODE IN (SELECT CUS_CODE
+                      			  FROM CUS_MASTER_MST
+                       		     WHERE BRANCH_CODE = #{BRANCH_CODE})
+	   </if>
+		<if test='CUS_GUBUN neq null and CUS_GUBUN neq "null" and CUS_GUBUN eq "A"'>
+  			AND  A.CUS_CODE IN (SELECT CUS_CODE
+                      			  FROM CUS_MASTER_MST
+                       		     WHERE BRANCH_CODE = #{BRANCH_CODE}
+                         		   AND AGENT_CODE  = #{AGENT_CODE}
+                         		   AND CUS_CODE   LIKE '%' + #{S_CUS_CODE} + '%'
+                         		   )
+	   </if>
+		<if test='CUS_GUBUN neq null and CUS_GUBUN neq "null" and CUS_GUBUN eq "R"'>
+  			AND  A.CUS_CODE IN (SELECT CUS_CODE
+                      			  FROM CUS_REPRST_MST
+                       		     WHERE BRANCH_CODE = #{BRANCH_CODE}
+                         		   AND REPR_CUS_CODE  = #{CUS_CODE}
+                         		   AND CUS_CODE   LIKE '%' + #{S_CUS_CODE} + '%'
+                         		   )
+	   </if>	   
+		<if test='S_ORDER_STAT neq null and S_ORDER_STAT neq "null" and S_ORDER_STAT neq ""'>
+		<![CDATA[
+			AND A.ORDER_STAT = #{S_ORDER_STAT}
+		]]>
+		</if>	
+		<if test='S_ORDER_DATE1 neq null and S_ORDER_DATE1 neq "null" and S_ORDER_DATE1 neq ""'>
+		<![CDATA[
+			AND A.SHIP_RQST_DATE >=  #{S_ORDER_DATE1}
+		]]>
+		</if>
+		<if test='S_ORDER_DATE2 neq null and S_ORDER_DATE2 neq "null" and S_ORDER_DATE2 neq ""' >
+		<![CDATA[
+			AND A.SHIP_RQST_DATE <=  #{S_ORDER_DATE2}
+		]]>
+		</if>
+		<if test='S_ORDER_IDX neq null and S_ORDER_IDX neq "null" and S_ORDER_IDX neq ""' >
+		<![CDATA[
+			AND A.ORDER_IDX =  #{S_ORDER_IDX}
+		]]>
+		</if>
+		<if test='S_CUS_NAME neq null and S_CUS_NAME neq "null" and S_CUS_NAME neq ""' >
+		<![CDATA[
+			AND ISNULL(B.CUS_NAME, '') LIKE #{S_CUS_NAME} + '%'
+		]]>
+		</if>
+        )
+        SELECT
+			 ORDER_IDX
+			,ORDER_DATE
+			,SHIP_RQST_DATE
+			,DELV_CUS_NAME
+			,BRAND_DIVISION_NAME
+			,GOOD_NAME
+			,UNIT_NAME
+			,DEAL_QTY
+			,SALE_PRICE
+			,SALE_AMT
+			,DEAL_PRICE
+			,DEAL_AMT
+			,ARRIVE_NAME
+			,SHIP_NAME
+			,NAB_NAME
+			,CAR_NAME
+			,SALE_TRANS_PRI
+			,SALE_TRANS_AMT
+			,STAT_NAME
+			,ORDER_STAT
+			,REMARK
+			,DRIVER_NAME
+			,HP_NO
+        FROM  #tmpTable
+        WHERE RowNum BETWEEN #{searchRangeStart} AND #{searchRangeEnd}
+        ORDER BY SHIP_RQST_DATE, ORDER_IDX DESC
+        ;
+        
+        DELETE #tmpTable;		
+	</select>
+	
+	
+	<update id="updateOrderCancel" parameterType="Map" >
+		UPDATE APR_ONLINE_ODR
+		   SET ORDER_STAT = 2
+	 	 WHERE ORDER_IDX  = #{S_ORDER_IDXSC
+	 	   AND ORDER_STAT = 1
+	</update>
+	
+	<select id="selectCusCredit" parameterType="Map" resultType="CusCreditBO">
+		SELECT   ISNULL(A.CREDIT_LIMIT, 0)    AS CREDIT_LIMIT     --여신한도
+		       , ISNULL(A.PREV_CREDIT_BLC, 0) AS PREV_CREDIT_BLC  --전월채권잔액
+		       , ISNULL(A.CURR_RECV_AMT, 0)   AS CURR_RECV_AMT    --당월입금액
+		       , ISNULL(A.CURR_SALE_AMT, 0)   AS CURR_SALE_AMT    --당월매출액
+		       , ISNULL(A.CREDIT_LIMIT, 0) -
+		         ( ISNULL(A.PREV_CREDIT_BLC, 0) + ISNULL(A.CURR_SALE_AMT, 0) - ISNULL(A.CURR_RECV_AMT, 0) )
+		                                      AS ORDER_ABLE_AMT   --주문가능액
+		  FROM   (SELECT   dbo.GET_CUSCREDITLIMT(#{BRANCH_CODE}, #{CUS_CODE})                  AS CREDIT_LIMIT     --여신한도
+		                 , dbo.GET_CUSBNDINFO(#{BRANCH_CODE}, #{CUS_CODE}, #{REPR_CUS_YN}, 1)  AS PREV_CREDIT_BLC  --전월채권잔액
+		                 , dbo.GET_CUSBNDINFO(#{BRANCH_CODE}, #{CUS_CODE}, #{REPR_CUS_YN}, 3)  AS CURR_RECV_AMT    --당월입금액
+		                 , dbo.GET_CUSBNDINFO(#{BRANCH_CODE}, #{CUS_CODE}, #{REPR_CUS_YN}, 2)  AS CURR_SALE_AMT    --당월매출액
+		            FROM   DB_DUAL) A
+	</select>
+
+
+	<select id="selectCusCredit2" parameterType="Map" resultType="CusCreditBO">
+		SELECT   ISNULL(A.CREDIT_LIMIT, 0)    AS CREDIT_LIMIT     --여신한도
+		       , ISNULL(A.PREV_CREDIT_BLC, 0) AS PREV_CREDIT_BLC  --전월채권잔액
+		       , ISNULL(A.CURR_RECV_AMT, 0)   AS CURR_RECV_AMT    --당월입금액
+		       , ISNULL(A.CURR_SALE_AMT, 0)   AS CURR_SALE_AMT    --당월매출액
+		       , ISNULL(A.CREDIT_LIMIT, 0) -
+		         ( ISNULL(A.PREV_CREDIT_BLC, 0) + ISNULL(A.CURR_SALE_AMT, 0) - ISNULL(A.CURR_RECV_AMT, 0) )
+		                                      AS ORDER_ABLE_AMT   --주문가능액
+		  FROM   (SELECT   dbo.GET_CUSADDCREDITLIMT(#{BRANCH_CODE}, #{CUS_CODE})               AS CREDIT_LIMIT     --여신한도
+		                 , dbo.GET_CUSBNDINFO(#{BRANCH_CODE}, #{CUS_CODE}, #{REPR_CUS_YN}, 1)  AS PREV_CREDIT_BLC  --전월채권잔액
+		                 , dbo.GET_CUSBNDINFO(#{BRANCH_CODE}, #{CUS_CODE}, #{REPR_CUS_YN}, 3)  AS CURR_RECV_AMT    --당월입금액
+		                 , dbo.GET_CUSBNDINFO(#{BRANCH_CODE}, #{CUS_CODE}, #{REPR_CUS_YN}, 2)  AS CURR_SALE_AMT    --당월매출액
+		            FROM   DB_DUAL) A
+	</select>
+
+	<select id="selectDelvCust" parameterType="Map" resultType="DelvCustBO">
+		SELECT   RTRIM(ISNULL(A.DELV_CUS_CODE , '')) AS DELV_CUS_CODE  --납품거래처코드
+		       , RTRIM(ISNULL(B.CUS_NAME      , '')) AS DELV_CUS_NAME  --남품거래처명
+		       , RTRIM(ISNULL(A.TRANS_CUS_CODE, '')) AS TRANS_CUS_CODE --정산거래처코드
+		       , RTRIM(ISNULL(C.BUY_CUS_CODE  , '')) AS BUY_CUS_CODE   --매입처코드
+		       , RTRIM(ISNULL(C.BRAND_CODE    , '')) AS BRAND_CODE     --브랜드코드
+		  FROM   CUS_BUYTRN_MAP A
+		       , CUS_BUYTRN_MST B
+		       , CUS_BUYTRN_MST C
+		 WHERE   A.BRANCH_CODE    = #{BRANCH_CODE}
+		   AND   A.CUS_CODE       = #{CUS_CODE}
+		   AND   A.BRANCH_CODE    = B.BRANCH_CODE
+		   AND   A.DELV_CUS_CODE  = B.TRANS_CUS_CODE
+		   AND   A.BRANCH_CODE    = C.BRANCH_CODE
+		   AND   A.TRANS_CUS_CODE = C.TRANS_CUS_CODE
+		 ORDER BY 1
+	</select>	
+
+	<select id="selectCarNo" parameterType="Map" resultType="CarNoBO">
+		SELECT   CAR_NO                    AS CAR_NO       --차량코드
+		       , CAR_NAME                  AS CAR_NAME     --차량명
+		       , DRIVER_NAME               AS DRIVER_NAME  --운전자명
+		       , TEL_NO                    AS DRIVER_HP_NO --운전자_휴대폰번호
+		       , PLACE_CODE                AS PLACE_CODE   --운송회사
+		       , ISNULL(CARRY_QTY,0)*200   AS CARRY_QTY    --적재량
+		  FROM   SYS_TCARNO_MST
+		 WHERE 1=1
+		    <if test='PLACE_CODE neq null and PLACE_CODE neq "null" and PLACE_CODE neq ""'>
+		    	AND PLACE_CODE = #{PLACE_CODE}
+		    </if>		  
+		 ORDER BY 1
+	</select>
+
+	<select id="order.selectOrderCost" parameterType="Map" resultType="OrderCostBO">
+	<![CDATA[
+		SELECT   dbo.GET_GOODPRICE(CONVERT(CHAR(8), GETDATE(), 112), #{BRANCH_CODE}, #{CUS_CODE},     #{BRAND_CODE}, #{GOOD_CODE}, #{SHIP_FLAG}, #{NAB_CODE}, 1) AS BASE_PRICE       --기준단가
+		       , dbo.GET_GOODPRICE(CONVERT(CHAR(8), GETDATE(), 112), #{BRANCH_CODE}, #{BUY_CUS_CODE}, #{BRAND_CODE}, #{GOOD_CODE}, #{SHIP_FLAG}, #{NAB_CODE}, 2) AS BUY_PRICE        --매입단가
+		       , dbo.GET_GOODPRICE(CONVERT(CHAR(8), GETDATE(), 112), #{BRANCH_CODE}, #{CUS_CODE},     #{BRAND_CODE}, #{GOOD_CODE}, #{SHIP_FLAG}, #{NAB_CODE}, 3) AS SALE_PRICE       --매출단가
+		       , (SELECT ISNULL(MAX(BASE_DATE),'00000000') AS PRICE_BASE_DATE
+		            FROM SYS_BASPRC_MST
+		           WHERE BASE_DATE <= CONVERT(CHAR(8), GETDATE(), 112)
+		             AND GOOD_CODE =  #{GOOD_CODE}
+		             AND BRAND_CODE = #{BRAND_CODE})                                                                                   AS PRICE_BASE_DATE  --단가기준일자
+		       , dbo.GET_GOODPRICE(CONVERT(CHAR(8), GETDATE(), 112), #{BRANCH_CODE}, #{CUS_CODE},     #{BRAND_CODE}, #{GOOD_CODE}, #{SHIP_FLAG}, #{NAB_CODE}, 4) AS SALE_TRANS_PRI   --수송단가
+		  FROM   DB_DUAL
+	]]>
+	</select>	
+
+	<insert id="insertOrderDetailList" parameterType="Map">
+	<![CDATA[
+		INSERT INTO APR_ONLINE_ODR       --온라인유류주문내역
+		(                                       
+			ORDER_DATE             ,  --주문일자
+			ORDER_CHANNEL          ,  --주문채널('1':홈페이지, '2':ERP)
+			ORDER_STAT             ,  --주문상태('1':주문중, '2':주문취소, '3':출하중, '9':출하완료)
+			SHIP_RQST_DATE         ,  --출하요청일자
+			ARRV_RQST_TIME         ,  --도착예정시간
+			DEPT_CODE              ,  --매출부서
+			BRAND_CODE             ,  --브랜드구분('0':NONE BRAND, '1':BRAND)
+			AGENT_CODE             ,  --알선업체코드
+			SHIP_FLAG              ,  --출하구분('1':저유소, '2':저장소)
+			SPO_CODE               ,  --저장소코드
+			BRANCH_CODE            ,  --지점코드
+			CUS_CODE               ,  --거래처코드(로그인_사용자 거래처코드)
+			DELV_CUS_CODE          ,  --남품거래처코드
+			TRANS_CUS_CODE         ,  --정산거래처코드
+			BRAND_DIVISION         ,  --상표구분
+			GOOD_CODE              ,  --상품코드
+			DEAL_QTY               ,  --거래수량
+			ARRIVE_SEC             ,  --인도조건
+			NAB_CODE               ,  --출하지코드
+			CAR_NO                 ,  --수송차량번호
+			DRIVER_NAME            ,  --운전자명
+			HP_NO                  ,  --운전자_휴대폰번호
+			TRANS_CORP             ,  --운송회사
+			PRICE_BASE_DATE        ,  --단가기준일자
+			BASE_PRICE             ,  --기준단가
+			BUY_PRICE              ,  --매입단가
+			DEAL_PRICE             ,  --거래단가
+			DEAL_AMT               ,  --거래금액
+			ORDER_SMS_SEND_YN      ,  --주문요청_SMS발송_여부('Y':발송, 'N':미발송)
+			CAR_SMS_SEND_YN        ,  --수송차량배정_SMS발송_여부('Y':발송, 'N':미발송)
+			OILCORP_ODRNO          ,  --정유사_오더번호
+			BEF_CREDIT_LIMIT       ,  --이전_여신한도(해당 거래제외 여신한도)
+			IP_ADDRESS             ,  --접속IP
+			LOGIN_DATE             ,  --접속일시       
+			DEAL_DATE              ,  --ERP_거래일자
+			SERIAL_NO              ,  --ERP_거래번호
+			REMARK                 ,  --특이사항
+			INS_USER_ID            ,  --등록자ID
+			DATA_INS_DATE          ,  --자료등록일시
+			UPT_USER_ID            ,  --변경자ID
+			DATA_UPT_DATE          ,  --자료변경일시
+			LOGIN_CUS_CODE         ,  --로그인한 거래처코드
+			BUY_CUS_CODE           ,  --매입처코드
+			SALE_PRICE             ,  --매출단가
+			SALE_AMT               ,  --매출금액
+			SALE_TRANS_PRI         ,  --매출수송단가
+			SALE_TRANS_AMT            --매출수송금액
+		)
+		VALUES
+		(                                       
+			CONVERT(CHAR(8), GETDATE(), 112) ,  --주문일자
+			'1'                              ,  --주문채널('1':홈페이지, '2':ERP)
+			'1'                              ,  --주문상태('1':주문중, '2':주문취소, '3':출하중, '9':출하완료)
+			#{SHIP_RQST_DATE}                ,  --출하요청일자
+			'0000'                           ,  --도착예정시간
+			NULL                             ,  --매출부서
+			#{BRAND_CODE}                    ,  --브랜드구분('0':NONE BRAND, '1':BRAND)
+			#{AGENT_CODE}                    ,  --알선업체코드 (Agent 일때만 .. 나머지는 null 처리)
+			#{SHIP_FLAG}                     ,  --출하구분('1':저유소, '2':저장소)
+			#{SPO_CODE}                      ,  --저장소코드(출하구분 '2'일 경우만 들어감)
+			#{BRANCH_CODE}                   ,  --지점코드
+			#{CUS_CODE}                      ,  --거래처코드(로그인_사용자 거래처코드)
+			#{DELV_CUS_CODE}                 ,  --남품거래처코드
+			#{TRANS_CUS_CODE}                ,  --정산거래처코드
+			#{BRAND_DIVISION}                ,  --상표구분
+			#{GOOD_CODE}                     ,  --제품코드
+			#{DEAL_QTY}                      ,  --거래수량
+			#{ARRIVE_SEC}                    ,  --인도조건
+			#{NAB_CODE}                      ,  --출하지코드(출하구분 '1'일 경우만 들어감)
+			#{CAR_NO}                        ,  --수송차량번호
+			#{DRIVER_NAME}                   ,  --운전자명
+			#{HP_NO}                         ,  --운전자_휴대폰번호
+			#{TRANS_CORP}                    ,  --운송회사
+			#{PRICE_BASE_DATE}               ,  --단가기준일자
+			#{BASE_PRICE}                    ,  --기준단가
+			#{BUY_PRICE}                     ,  --매입단가
+			#{DEAL_PRICE}                    ,  --매출단가
+			#{DEAL_AMT}                      ,  --매출금액
+			'N'                              ,  --주문요청_SMS발송_여부('Y':발송, 'N':미발송)
+			'N'                              ,  --수송차량배정_SMS발송_여부('Y':발송, 'N':미발송)
+			NULL                             ,  --정유사_오더번호
+			#{CREDIT_LIMIT}                  ,  --이전_여신한도(해당 거래제외 여신한도)
+			#{IP_ADDRESS}                    ,  --접속IP
+			#{LOGIN_DATE}                    ,  --접속일시       
+			NULL                             ,  --ERP_거래일자
+			NULL                             ,  --ERP_거래번호
+			#{REMARK}                        ,  --특이사항
+			'MOB'                            ,  --등록자ID
+			GETDATE()                        ,  --자료등록일시
+			'MOB'                            ,  --변경자ID
+			GETDATE()                        ,  --자료변경일시
+			#{LOGIN_CUS_CODE}                ,  --로그인한 거래처코드
+			#{BUY_CUS_CODE}                  ,  --매입처코드
+			#{SALE_PRICE}                    ,  --매출단가
+			#{SALE_AMT}                      ,  --매출금액
+			#{SALE_TRANS_PRI}                ,  --매출수송단가
+			#{SALE_TRANS_AMT}                   --매출수송금액
+		)
+	]]>
+	</insert>
+
+	<select id="selectTradeListCnt" parameterType="Map" resultType="String">
+	<![CDATA[
+		WITH TMP_DATA AS
+		(SELECT  DEAL_DATE             AS DEAL_DATE
+		       , DEAL_DATE+'00000'     AS DATA_KEY
+		       , '기준일채권잔액'      AS GOOD_NAME
+		       , 0                     AS DEAL_QTY
+		       , 0                     AS DEAL_PRICE
+		       , 0                     AS SALE_AMT
+		       , 0                     AS CREDIT_RECV_AMT
+		       , 0                     AS CARD_RECV_AMT
+		       , 0                     AS BANK_RECV_AMT
+		       , SUM(CURR_CREDIT_BLC + CURR_NOTE_BLC)
+		                               AS BLC_AMT
+		   FROM  DAY_CUSBND_BLC
+		  WHERE  DEAL_DATE   = CONVERT( CHAR(8), DATEADD(DAY, -1, #{FROM_DATE} ), 112)
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  CUS_CODE    = #{CUS_CODE}
+		  GROUP BY DEAL_DATE
+		  UNION ALL
+		 SELECT  LEFT(ORDER_DATE,4)+'-'+SUBSTRING(ORDER_DATE,5,2)+'-'+RIGHT(ORDER_DATE,2)
+		                               AS DEAL_DATE
+		       , ORDER_DATE+CONVERT(CHAR(5), ORDER_IDX)   AS DATA_KEY
+		       , dbo.GET_COMMCODE('GOODCD', GOOD_CODE)
+		                               AS GOOD_NAME
+		       , DEAL_QTY              AS DEAL_QTY
+		       , DEAL_PRICE            AS DEAL_PRICE
+		       , DEAL_AMT              AS SALE_AMT
+		       , 0                     AS CREDIT_RECV_AMT
+		       , 0                     AS CARD_RECV_AMT
+		       , 0                     AS BANK_RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_ONLINE_ODR
+		  WHERE  ORDER_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  CUS_CODE    = #{CUS_CODE}
+		    AND  ORDER_STAT != '2'
+		    AND  RTRIM(SERIAL_NO) IS NULL 
+		  UNION ALL
+		 SELECT  LEFT(DEAL_DATE,4)+'-'+SUBSTRING(DEAL_DATE,5,2)+'-'+RIGHT(DEAL_DATE,2)
+		                               AS DEAL_DATE
+		       , DEAL_DATE+SERIAL_NO   AS DATA_KEY
+		       , dbo.GET_COMMCODE('GOODCD', GOOD_CODE)
+		                               AS GOOD_NAME
+		       , DEAL_QTY              AS DEAL_QTY
+		       , DEAL_PRICE            AS DEAL_PRICE
+		       , DEAL_AMT              AS SALE_AMT
+		       , 0                     AS CREDIT_RECV_AMT
+		       , 0                     AS CARD_RECV_AMT
+		       , 0                     AS BANK_RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_OILODR_TRN
+		  WHERE  DEAL_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  SLIP_FLAG IN ('31', '34')
+		    AND  CUS_CODE    = #{CUS_CODE}
+		    AND  RTRIM(TR_SERIAL_NO) IS NULL
+		  UNION ALL
+		 SELECT  DEAL_DATE             AS DEAL_DATE
+		       , DEAL_DATE+SERIAL_NO   AS DATA_KEY
+		       , dbo.GET_COMMCODE('GOODCD', GOOD_CODE)
+		                               AS GOOD_NAME
+		       , DEAL_QTY              AS DEAL_QTY
+		       , DEAL_PRICE            AS DEAL_PRICE
+		       , DEAL_AMT              AS SALE_AMT
+		       , 0                     AS CREDIT_RECV_AMT
+		       , 0                     AS CARD_RECV_AMT
+		       , 0                     AS BANK_RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_DEALTR_TRN
+		  WHERE  DEAL_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  SLIP_FLAG IN ('31', '34')
+		    AND  CUS_CODE    LIKE '%' + #{CUS_CODE} + '%'
+		  UNION ALL
+		 SELECT  DEAL_DATE             AS DEAL_DATE
+		       , DEAL_DATE+SERIAL_NO   AS DATA_KEY
+		       , ''                    AS GOOD_NAME
+		       , 0                     AS DEAL_QTY
+		       , 0                     AS DEAL_PRICE
+		       , 0                     AS SALE_AMT
+		       , CASE WHEN SLIP_FLAG IN ('41') THEN DEAL_AMT ELSE 0 END
+		                               AS CREDIT_RECV_AMT
+		       , CASE WHEN SLIP_FLAG IN ('42') THEN DEAL_AMT ELSE 0 END
+		                               AS CARD_RECV_AMT
+		       , CASE WHEN SLIP_FLAG IN ('43', '44', '45') THEN DEAL_AMT ELSE 0 END
+		                               AS BANK_RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_RECVTR_TRN
+		  WHERE  DEAL_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  SLIP_FLAG IN ('41', '42', '43', '44', '45')
+		    AND  CUS_CODE    = #{CUS_CODE}
+		    )
+		SELECT  COUNT(*)
+		  FROM (
+			SELECT  AA.DEAL_DATE
+			  FROM  TMP_DATA AA, TMP_DATA BB
+			 WHERE  AA.DATA_KEY >= BB.DATA_KEY
+			 GROUP BY
+			       AA.DEAL_DATE
+			     , AA.DATA_KEY
+			     , AA.GOOD_NAME
+			     , AA.DEAL_QTY
+			     , AA.DEAL_PRICE
+			     , AA.SALE_AMT
+			     , AA.CREDIT_RECV_AMT
+			     , AA.CARD_RECV_AMT
+			     , AA.BANK_RECV_AMT
+		 ) A
+	]]>
+	</select>
+
+
+	<select id="selectTradeList" parameterType="Map" resultType="OrderSheetBO">
+	<![CDATA[
+		WITH TMP_DATA AS
+		(SELECT  LEFT(DEAL_DATE,4)+'-'+SUBSTRING(DEAL_DATE,5,2)+'-'+RIGHT(DEAL_DATE,2)
+		                               AS DEAL_DATE
+		       , DEAL_DATE+'00000'     AS DATA_KEY
+		       , '기준일채권잔액'      AS GOOD_NAME
+		       , 0                     AS DEAL_QTY
+		       , 0                     AS DEAL_PRICE
+		       , 0                     AS SALE_AMT
+		       , 0                     AS CREDIT_RECV_AMT
+		       , 0                     AS CARD_RECV_AMT
+		       , 0                     AS BANK_RECV_AMT
+		       , SUM(CURR_CREDIT_BLC + CURR_NOTE_BLC)
+		                               AS BLC_AMT
+		   FROM  DAY_CUSBND_BLC
+		  WHERE  DEAL_DATE   = CONVERT( CHAR(8), DATEADD(DAY, -1, #{FROM_DATE} ), 112)
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  CUS_CODE    = #{CUS_CODE}
+		  GROUP BY DEAL_DATE
+		  UNION ALL
+		 SELECT  LEFT(ORDER_DATE,4)+'-'+SUBSTRING(ORDER_DATE,5,2)+'-'+RIGHT(ORDER_DATE,2)
+		                               AS DEAL_DATE
+		       , ORDER_DATE+CONVERT(CHAR(5), ORDER_IDX)   AS DATA_KEY
+		       , dbo.GET_COMMCODE('GOODCD', GOOD_CODE)
+		                               AS GOOD_NAME
+		       , DEAL_QTY              AS DEAL_QTY
+		       , DEAL_PRICE            AS DEAL_PRICE
+		       , DEAL_AMT              AS SALE_AMT
+		       , 0                     AS CREDIT_RECV_AMT
+		       , 0                     AS CARD_RECV_AMT
+		       , 0                     AS BANK_RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_ONLINE_ODR
+		  WHERE  ORDER_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  CUS_CODE    = #{CUS_CODE}
+		    AND  ORDER_STAT != '2'
+		    AND  RTRIM(SERIAL_NO) IS NULL 
+		  UNION ALL
+		 SELECT  LEFT(DEAL_DATE,4)+'-'+SUBSTRING(DEAL_DATE,5,2)+'-'+RIGHT(DEAL_DATE,2)
+		                               AS DEAL_DATE
+		       , DEAL_DATE+SERIAL_NO   AS DATA_KEY
+		       , dbo.GET_COMMCODE('GOODCD', GOOD_CODE)
+		                               AS GOOD_NAME
+		       , DEAL_QTY              AS DEAL_QTY
+		       , DEAL_PRICE            AS DEAL_PRICE
+		       , DEAL_AMT              AS SALE_AMT
+		       , 0                     AS CREDIT_RECV_AMT
+		       , 0                     AS CARD_RECV_AMT
+		       , 0                     AS BANK_RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_OILODR_TRN
+		  WHERE  DEAL_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  SLIP_FLAG IN ('31', '34')
+		    AND  CUS_CODE    = #{CUS_CODE}
+		    AND  RTRIM(TR_SERIAL_NO) IS NULL
+		  UNION ALL
+		 SELECT  LEFT(DEAL_DATE,4)+'-'+SUBSTRING(DEAL_DATE,5,2)+'-'+RIGHT(DEAL_DATE,2)
+		                               AS DEAL_DATE
+		       , DEAL_DATE+SERIAL_NO   AS DATA_KEY
+		       , dbo.GET_COMMCODE('GOODCD', GOOD_CODE)
+		                               AS GOOD_NAME
+		       , DEAL_QTY              AS DEAL_QTY
+		       , DEAL_PRICE            AS DEAL_PRICE
+		       , DEAL_AMT              AS SALE_AMT
+		       , 0                     AS CREDIT_RECV_AMT
+		       , 0                     AS CARD_RECV_AMT
+		       , 0                     AS BANK_RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_DEALTR_TRN
+		  WHERE  DEAL_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  SLIP_FLAG IN ('31', '34')
+		    AND  CUS_CODE    = #{CUS_CODE}
+		  UNION ALL
+		 SELECT  LEFT(DEAL_DATE,4)+'-'+SUBSTRING(DEAL_DATE,5,2)+'-'+RIGHT(DEAL_DATE,2)  
+		                               AS DEAL_DATE
+		       , DEAL_DATE+SERIAL_NO   AS DATA_KEY
+		       , ''                    AS GOOD_NAME
+		       , 0                     AS DEAL_QTY
+		       , 0                     AS DEAL_PRICE
+		       , 0                     AS SALE_AMT
+		       , CASE WHEN SLIP_FLAG IN ('41') THEN DEAL_AMT ELSE 0 END
+		                               AS CREDIT_RECV_AMT
+		       , CASE WHEN SLIP_FLAG IN ('42') THEN DEAL_AMT ELSE 0 END
+		                               AS CARD_RECV_AMT
+		       , CASE WHEN SLIP_FLAG IN ('43', '44', '45') THEN DEAL_AMT ELSE 0 END
+		                               AS BANK_RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_RECVTR_TRN
+		  WHERE  DEAL_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  SLIP_FLAG IN ('41', '42', '43', '44', '45')
+		    AND  CUS_CODE    = #{CUS_CODE}
+		)
+	    SELECT A.*
+	      FROM
+	    (
+			SELECT
+			 		ROW_NUMBER() OVER(order by AA.DEAL_DATE, AA.DATA_KEY  ASC ) AS RowNum
+				  , AA.DEAL_DATE                   AS DEAL_DATE       --일자
+			      , AA.DATA_KEY                    AS DATA_KEY        --정렬하기위한KEY(조회항목 아님)
+			      , AA.GOOD_NAME                   AS GOOD_NAME       --유종
+			      , AA.DEAL_QTY                    AS DEAL_QTY        --수량
+			      , AA.DEAL_PRICE                  AS DEAL_PRICE      --단가
+			      , AA.SALE_AMT                    AS SALE_AMT        --금액
+			      , AA.CREDIT_RECV_AMT             AS CREDIT_RECV_AMT --현금입금액
+			      , AA.CARD_RECV_AMT               AS CARD_RECV_AMT   --카드입금액
+			      , AA.BANK_RECV_AMT               AS BANK_RECV_AMT   --통장입금액
+			      , AA.CREDIT_RECV_AMT + AA.CARD_RECV_AMT + AA.BANK_RECV_AMT
+			                                       AS TOTAL_RECV_AMT  --입금액합계
+			      , SUM(BB.BLC_AMT + BB.SALE_AMT - BB.CREDIT_RECV_AMT - BB.CARD_RECV_AMT - BB.BANK_RECV_AMT)
+			                                       AS BLC_AMT         --채권잔액 
+			  FROM  TMP_DATA AA, TMP_DATA BB
+			 WHERE  AA.DATA_KEY >= BB.DATA_KEY
+			]]>	
+			<if test='DATA_KEY neq null and DATA_KEY neq "null" and DATA_KEY neq ""' >
+			<![CDATA[
+				AND AA.DATA_KEY=  #{DATA_KEY}
+			]]>			
+			</if>
+			<![CDATA[ 
+			 GROUP BY
+			       AA.DEAL_DATE
+			     , AA.DATA_KEY
+			     , AA.GOOD_NAME
+			     , AA.DEAL_QTY
+			     , AA.DEAL_PRICE
+			     , AA.SALE_AMT
+			     , AA.CREDIT_RECV_AMT
+			     , AA.CARD_RECV_AMT
+			     , AA.BANK_RECV_AMT
+	     ) A
+	     WHERE RowNum BETWEEN #{searchRangeStart} AND #{searchRangeEnd}
+		 ORDER BY 1, 2
+	]]>
+	</select>
+
+	<select id="selectTradeSum" parameterType="Map" resultType="OrderSheetSumBO">
+	<![CDATA[
+		WITH TMP_DATA AS
+		(SELECT  '9999'                AS DATA_KEY
+		       , '채권잔액'            AS GOOD_NAME
+		       , 0                     AS DEAL_QTY
+		       , 0                     AS SALE_AMT
+		       , 0                     AS RECV_AMT
+		       , SUM(CURR_CREDIT_BLC + CURR_SALE_AMT - CURR_CASH_RECV - CURR_NOTE_RECV) +
+			       SUM(CURR_NOTE_BLC + CURR_NOTE_RECV - CURR_NOTE_SETTLE)
+		                               AS BLC_AMT
+		   FROM  DAY_CUSBND_BLC
+		  WHERE  DEAL_DATE   = #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  CUS_CODE    = #{CUS_CODE}
+		  UNION ALL
+		 SELECT  GOOD_CODE             AS DATA_KEY
+		       , dbo.GET_COMMCODE('GOODCD', GOOD_CODE)
+		                               AS GOOD_NAME
+		       , SUM(DEAL_QTY)         AS DEAL_QTY
+		       , SUM(DEAL_AMT)         AS SALE_AMT
+		       , 0                     AS RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_DEALTR_TRN
+		  WHERE  DEAL_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  SLIP_FLAG IN ('31', '34')
+		    AND  CUS_CODE    = #{CUS_CODE}
+		    AND  GOOD_CODE IN ('1004', '1028', '1036')
+		  GROUP BY GOOD_CODE
+		  UNION ALL
+		 SELECT  '3000'                AS DATA_KEY
+		       , '기타'                AS GOOD_NAME
+		       , SUM(DEAL_QTY)         AS DEAL_QTY
+		       , SUM(DEAL_AMT)         AS SALE_AMT
+		       , 0                     AS RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_DEALTR_TRN
+		  WHERE  DEAL_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  SLIP_FLAG IN ('31', '34')
+		    AND  CUS_CODE    = #{CUS_CODE}
+		    AND  GOOD_CODE NOT IN ('1004', '1028', '1036')
+		  UNION ALL
+		 SELECT  '4000'                AS DATA_KEY
+		       , '매출액'              AS GOOD_NAME
+		       , 0                     AS DEAL_QTY
+		       , SUM(DEAL_AMT)         AS SALE_AMT
+		       , 0                     AS RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_DEALTR_TRN
+		  WHERE  DEAL_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  SLIP_FLAG IN ('31', '34')
+		    AND  CUS_CODE   = #{CUS_CODE}
+		  UNION ALL
+		 SELECT  '5000'                AS DATA_KEY
+		       , '입금액'              AS GOOD_NAME
+		       , 0                     AS DEAL_QTY
+		       , 0                     AS SALE_AMT
+		       , SUM(DEAL_AMT)         AS RECV_AMT
+		       , 0                     AS BLC_AMT
+		   FROM  APR_RECVTR_TRN
+		  WHERE  DEAL_DATE   BETWEEN #{FROM_DATE} AND #{TO_DATE}
+		    AND  BRANCH_CODE = #{BRANCH_CODE}
+		    AND  SLIP_FLAG IN ('41', '42', '43', '44', '45')
+		    AND  CUS_CODE    = #{CUS_CODE}
+		)
+	    SELECT A.*
+	      FROM
+	    (
+			SELECT
+			 		ROW_NUMBER() OVER(order by AA.DATA_KEY  ASC ) AS ROW_NUM
+				    , AA.DATA_KEY                    AS DATA_KEY        --정렬하기위한KEY(조회항목 아님)
+			      , AA.GOOD_NAME                   AS GOOD_NAME       --유종
+			      , AA.DEAL_QTY                    AS DEAL_QTY        --수량
+			      , AA.SALE_AMT                    AS SALE_AMT        --금액
+			      , AA.RECV_AMT                    AS RECV_AMT        --입금액
+			      , SUM(ISNULL(AA.BLC_AMT,0) + ISNULL(AA.SALE_AMT,0) - ISNULL(AA.RECV_AMT,0))
+			                                       AS BLC_AMT         --채권잔액 
+			  FROM  TMP_DATA AA
+			 GROUP BY
+			       AA.DATA_KEY
+			     , AA.GOOD_NAME
+			     , AA.DEAL_QTY
+			     , AA.SALE_AMT
+			     , AA.RECV_AMT
+	     ) A
+		 ORDER BY 1
+	]]>
+	</select>
+
+
+	<select id="selectSmsTarget" parameterType="Map" resultType="SmsBO">
+	<![CDATA[
+		SELECT   C.MNGR_EMP_NAME                    --관리담당자명
+		       , REPLACE(C.HP_NO,' ','')   AS HP_NO --관리담당자_휴대폰번호
+		       --, B.CUS_NAME                       --거래처명 (단일건 주석처리)
+		       ,(SELECT CUS_NAME FROM CUS_MASTER_MST WHERE CUS_CODE = A.CUS_CODE AND BRANCH_CODE = A.BRANCH_CODE) CUS_NAME -- 멀티건 추가 
+		  FROM   CUS_MASTER_MST A
+		       , CUS_MNGEMP_MST B   --멀티메시지 추가     2015.06.18 이동용B 요청사항
+		       , SYS_MNGEMP_MST C
+		 WHERE   A.BRANCH_CODE   = #{BRANCH_CODE}
+		   AND   A.CUS_CODE      = #{CUS_CODE}
+		   AND   A.BRANCH_CODE   = B.BRANCH_CODE
+		   AND   A.CUS_CODE      = B.CUS_CODE
+		   AND   B.MNGR_EMP_CODE = C.MNGR_EMP_CODE
+		   AND   C.SMS_RECV_YN   = 'Y' --주문SMS수신
+	]]>
+	</select>
+
+	<select id="selectAgentCusList" parameterType="Map" resultType="CommCodeBO">
+		SELECT   RTRIM(CUS_CODE)        AS COMM_CODE         --거래처코드
+		       , CUS_NAME               AS COMM_NAME         --거래처명
+		  FROM   CUS_MASTER_MST
+		 WHERE   BRANCH_CODE = '100'
+		   AND   AGENT_CODE  = #{AGENT_CODE}
+		 ORDER BY CUS_NAME ASC  
+	</select>
+	
+	
+	<select id="selectReprCusList" parameterType="Map" resultType="CommCodeBO">
+		SELECT   RTRIM(CUS_CODE)        AS COMM_CODE         --거래처코드
+		       , CUS_NAME               AS COMM_NAME         --거래처명
+		  FROM   CUS_MASTER_MST
+		 WHERE   BRANCH_CODE = '100'
+		   AND   CUS_CODE IN (SELECT CUS_CODE
+		                        FROM CUS_REPRST_MST
+		                       WHERE BRANCH_CODE   = '100'
+		                         AND REPR_CUS_CODE = #{CUS_CODE})
+		 ORDER BY CUS_NAME ASC  
+	</select>
+	
+	<select id="selectAgentListCnt" parameterType="Map" resultType="String">
+	<![CDATA[
+		WITH TEMP_DATA AS
+		(SELECT   CUS_CODE                                             AS CUS_CODE         --거래처코드
+		        , dbo.GET_CUSCREDITLIMT('100', CUS_CODE)               AS CREDIT_LIMIT     --여신한도
+		        , dbo.GET_CUSBNDINFO('100', CUS_CODE, ISNULL(REPR_CUS_YN,0), 1) 
+		                                                               AS PREV_CREDIT_BLC  --전월채권잔액
+		        , dbo.GET_CUSBNDINFO('100', CUS_CODE, ISNULL(REPR_CUS_YN,0), 3)
+		                                                               AS CURR_RECV_AMT    --당월입금액
+		        , dbo.GET_CUSBNDINFO('100', CUS_CODE, ISNULL(REPR_CUS_YN,0), 2)
+		                                                               AS CURR_SALE_AMT    --당월매출액
+		   FROM   CUS_MASTER_MST
+		  WHERE   BRANCH_CODE = '100'
+		    AND   AGENT_CODE  = #{AGENT_CODE}
+		    AND   CUS_CODE   LIKE '%' +  #{S_CUS_CODE} + '%'
+		    )
+		SELECT  COUNT(*) AS CNT
+		  FROM   CUS_MASTER_MST A LEFT JOIN CUS_VRACCT_MST B ON (A.BRANCH_CODE = B.BRANCH_CODE AND A.CUS_CODE = B.CUS_CODE AND ISNULL(B.USE_YN, 'N') = 'Y')
+		                          LEFT JOIN TEMP_DATA C ON (A.CUS_CODE = C.CUS_CODE)
+		                          LEFT JOIN SYS_MNGEMP_MST D ON (A.MNGR_EMP_CODE = D.MNGR_EMP_CODE AND ISNULL(D.SMS_RECV_YN, 'N') = 'Y')
+		 WHERE  A.BRANCH_CODE = '100'
+		   AND  A.AGENT_CODE = #{AGENT_CODE}
+		   AND  A.CUS_CODE   LIKE '%' +  #{S_CUS_CODE} + '%'
+	]]>
+	</select>
+
+
+	<select id="selectAgentList" parameterType="Map" resultType="AgentCustBO">
+	<![CDATA[
+		WITH TEMP_DATA AS
+		(SELECT   CUS_CODE                                             AS CUS_CODE         --거래처코드
+		        , dbo.GET_CUSCREDITLIMT('100', CUS_CODE)               AS CREDIT_LIMIT     --여신한도
+		        , dbo.GET_CUSBNDINFO('100', CUS_CODE, ISNULL(REPR_CUS_YN,0), 1) 
+		                                                               AS PREV_CREDIT_BLC  --전월채권잔액
+		        , dbo.GET_CUSBNDINFO('100', CUS_CODE, ISNULL(REPR_CUS_YN,0), 3)
+		                                                               AS CURR_RECV_AMT    --당월입금액
+		        , dbo.GET_CUSBNDINFO('100', CUS_CODE, ISNULL(REPR_CUS_YN,0), 2)
+		                                                               AS CURR_SALE_AMT    --당월매출액
+		   FROM   CUS_MASTER_MST
+		  WHERE   BRANCH_CODE = '100'
+		    AND   AGENT_CODE  = #{AGENT_CODE}
+		    AND   CUS_CODE   LIKE '%' +  #{S_CUS_CODE} + '%'
+		    )
+		SELECT *
+		FROM (
+			SELECT 
+					 ROW_NUMBER() OVER(order by A.CUS_NAME ASC ) AS RowNum 
+				   , A.CUS_CODE                   AS CUS_CODE         --거래처코드
+			       , A.CUS_NAME                   AS CUS_NAME         --거래처명
+			       , A.REPR_NAME                  AS REPR_NAME        --대표자명
+			       , A.BUSS_NO                    AS BUSS_NO          --사업자번호
+			       , CASE WHEN LEN(RTRIM(A.ZIP_NO)) = 6 THEN
+			                   '('+LEFT(A.ZIP_NO,3)+'-'+RIGHT(A.ZIP_NO,3)+') '+RTRIM(ISNULL(A.ADDR1,''))+' '+RTRIM(ISNULL(A.ADDR2,''))
+			              ELSE RTRIM(ISNULL(A.ADDR1,''))+' '+RTRIM(ISNULL(A.ADDR2,''))
+			         END                          AS ADDRESS          --소재지
+			       , B.BANK_NAME                  AS BANK_NAME        --은행명
+			       , B.VRACCT_NO                  AS VRACCT_NO        --가상계좌번호
+			       , ISNULL(C.CREDIT_LIMIT, 0) -
+			         ( ISNULL(C.PREV_CREDIT_BLC, 0) + ISNULL(C.CURR_SALE_AMT, 0) - ISNULL(C.CURR_RECV_AMT, 0) )
+			                                      AS ORDER_ABLE_AMT   --주문가능액
+			       , A.ETAX_RECVEMAIL             AS EMAIL            --이메일
+			       , A.RESMAN_TEL_NO              AS HP_NO            --휴대전화번호
+			       , A.MNGR_EMP_CODE              AS MNGR_EMP_CODE    --관리담당자코드
+			       , D.MNGR_EMP_NAME              AS MNGR_EMP_NAME    --관리담당자명
+			       , D.HP_NO                      AS MNGR_HP_NO       --관리담당자_휴대폰번호
+			  FROM   CUS_MASTER_MST A LEFT JOIN CUS_VRACCT_MST B ON (A.BRANCH_CODE = B.BRANCH_CODE AND A.CUS_CODE = B.CUS_CODE AND ISNULL(B.USE_YN, 'N') = 'Y')
+			                          LEFT JOIN TEMP_DATA C ON (A.CUS_CODE = C.CUS_CODE)
+			                          LEFT JOIN SYS_MNGEMP_MST D ON (A.MNGR_EMP_CODE = D.MNGR_EMP_CODE AND ISNULL(D.SMS_RECV_YN, 'N') = 'Y')
+			 WHERE  A.BRANCH_CODE = '100'
+			   AND  A.AGENT_CODE = #{AGENT_CODE}
+		       AND  A.CUS_CODE   LIKE '%' +  #{S_CUS_CODE} + '%'
+		 ) A
+		 WHERE RowNum BETWEEN #{searchRangeStart} AND #{searchRangeEnd}
+		 ORDER BY 1	
+	]]>
+	</select>
+
+
+	<select id="selectReprListCnt" parameterType="Map" resultType="String">
+	<![CDATA[
+		SELECT   COUNT(*) AS CNT
+		  FROM   CUS_MASTER_MST A LEFT JOIN SYS_MNGEMP_MST B ON (A.MNGR_EMP_CODE = B.MNGR_EMP_CODE AND ISNULL(B.SMS_RECV_YN, 'N') = 'Y')
+		 WHERE   A.BRANCH_CODE = '100'
+		   AND   A.CUS_CODE IN (SELECT CUS_CODE
+		                          FROM CUS_REPRST_MST
+		                         WHERE BRANCH_CODE   = '100'
+		                           AND REPR_CUS_CODE = #{CUS_CODE}
+		                           AND CUS_CODE   LIKE '%' +  #{S_CUS_CODE} + '%'
+		                           )
+	]]>
+	</select>
+
+	<select id="selectReprList" parameterType="Map" resultType="ReprCustBO">
+	<![CDATA[
+	  SELECT *
+		FROM (			 
+			SELECT  
+			  		 ROW_NUMBER() OVER(order by A.CUS_CODE ASC ) AS RowNum
+				   , A.CUS_CODE                   AS CUS_CODE         --거래처코드
+			       , A.CUS_NAME                   AS CUS_NAME         --거래처명
+			       , A.REPR_NAME                  AS REPR_NAME        --대표자명
+			       , A.BUSS_NO                    AS BUSS_NO          --사업자번호
+			       , CASE WHEN LEN(RTRIM(A.ZIP_NO)) = 6 THEN
+			                   '('+LEFT(A.ZIP_NO,3)+'-'+RIGHT(A.ZIP_NO,3)+') '+RTRIM(ISNULL(A.ADDR1,''))+' '+RTRIM(ISNULL(A.ADDR2,''))
+			              ELSE RTRIM(ISNULL(A.ADDR1,''))+' '+RTRIM(ISNULL(A.ADDR2,''))
+			         END                          AS ADDRESS          --소재지
+			       , A.ETAX_RECVEMAIL             AS EMAIL            --이메일
+			       , A.RESMAN_TEL_NO              AS HP_NO            --휴대전화번호
+			       , A.MNGR_EMP_CODE              AS MNGR_EMP_CODE    --관리담당자코드
+			       , B.MNGR_EMP_NAME              AS MNGR_EMP_NAME    --관리담당자명
+			       , B.HP_NO                      AS MNGR_HP_NO       --관리담당자_휴대폰번호
+			  FROM   CUS_MASTER_MST A LEFT JOIN SYS_MNGEMP_MST B ON (A.MNGR_EMP_CODE = B.MNGR_EMP_CODE AND ISNULL(B.SMS_RECV_YN, 'N') = 'Y')
+			 WHERE   A.BRANCH_CODE = '100'
+			   AND   A.CUS_CODE IN (SELECT CUS_CODE
+			                          FROM CUS_REPRST_MST
+			                         WHERE BRANCH_CODE   = '100'
+			                           AND REPR_CUS_CODE = #{CUS_CODE}
+		                               AND CUS_CODE   LIKE '%' +  #{S_CUS_CODE} + '%'
+			                           )
+		 ) A
+		 WHERE RowNum BETWEEN #{searchRangeStart} AND #{searchRangeEnd}
+		 ORDER BY 2				                           
+	]]>
+	</select>		
+</mapper>

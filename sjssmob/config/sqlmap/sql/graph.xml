@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="graph">
+
+	<select id='selectGraph1' parameterType='Map' resultType='GraphBO1'>
+	<![CDATA[
+		SELECT  ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1001' THEN A.DEAL_QTY END )/200,0),0) +
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1002' THEN A.DEAL_QTY END )/200,0),0) +
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1004' THEN A.DEAL_QTY END )/200,0),0) +
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1005' THEN A.DEAL_QTY END )/200,0),0)    AS UG_QTY, --무연
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1036' THEN A.DEAL_QTY END )/200,0),0) +
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1037' THEN A.DEAL_QTY END )/200,0),0)    AS K_QTY,  --경유
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1025' THEN A.DEAL_QTY END )/200,0),0) +
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1028' THEN A.DEAL_QTY END )/200,0),0)    AS H_QTY,  --등유
+		        ISNULL(ROUND(SUM( A.DEAL_QTY )/200,0),0)                                             AS TOT_QTY --합계
+		FROM    APR_REALTR_RCV A, CUS_MASTER_MST B
+		WHERE   A.DEAL_DATE     =   #{DEAL_DATE}
+		AND     A.BRANCH_CODE   =   #{BRANCH_CODE}
+		AND     A.SLIP_FLAG IN  ('31','34')
+		AND     A.GOOD_CODE IN  ('1001','1002','1004','1005','1036','1037','1025','1028')
+		AND     A.BRANCH_CODE   =   B.BRANCH_CODE
+		AND     A.CUS_CODE      =   B.CUS_CODE        
+	]]>
+	</select>
+
+	<select id='selectGraph2' parameterType='Map' resultType='GraphBO2'>
+	<![CDATA[
+		SELECT  ISNULL(ROUND(SUM( CASE  WHEN B.CUS_TYPE = '99' THEN A.DEAL_QTY END )/200,0),0)                   AS CASH_QTY , --현금
+		        ISNULL(ROUND(SUM( CASE  WHEN B.CUS_TYPE NOT IN ('99','04','05') THEN A.DEAL_QTY END )/200,0),0)  AS BLC_QTY  , --외상판매
+		        ISNULL(ROUND(SUM( CASE  WHEN B.CUS_TYPE = '05' THEN A.DEAL_QTY END )/200,0),0)                   AS TKT_QTY  , --상품권
+		        ISNULL(ROUND(SUM( CASE  WHEN B.CUS_TYPE = '04' THEN A.DEAL_QTY END )/200,0),0)                   AS CRDT_QTY , --신용카드
+		        ISNULL(ROUND(SUM( A.DEAL_QTY )/200,0),0)                                                         AS TOT_QTY    --합계
+		FROM    APR_REALTR_RCV A, CUS_MASTER_MST B
+		WHERE   A.DEAL_DATE     =   #{DEAL_DATE}
+		AND     A.BRANCH_CODE   =   #{BRANCH_CODE}
+		AND     A.SLIP_FLAG IN  ('31','34')
+		AND     A.GOOD_CODE IN  ('1001','1002','1004','1005','1036','1037','1025','1028')
+		AND     A.BRANCH_CODE   =   B.BRANCH_CODE
+		AND     A.CUS_CODE      =   B.CUS_CODE   
+	]]>
+	</select>
+
+	<select id='selectGraph3' parameterType='Map' resultType='GraphBO3'>
+	<![CDATA[
+		SELECT  ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1001' THEN A.DEAL_AMT END )/1000,0),0) +
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1002' THEN A.DEAL_AMT END )/1000,0),0) +
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1004' THEN A.DEAL_AMT END )/1000,0),0) +
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1005' THEN A.DEAL_AMT END )/1000,0),0)    AS UG_AMT, --무연
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1036' THEN A.DEAL_AMT END )/1000,0),0) +
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1037' THEN A.DEAL_AMT END )/1000,0),0)    AS K_AMT,  --경유
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1025' THEN A.DEAL_AMT END )/1000,0),0) +
+		        ISNULL(ROUND(SUM( CASE  WHEN A.GOOD_CODE = '1028' THEN A.DEAL_AMT END )/1000,0),0)    AS H_AMT,  --등유
+		        ISNULL(ROUND(SUM( A.DEAL_AMT )/1000,0),0)                                             AS TOT_AMT --합계
+		FROM    APR_REALTR_RCV A, CUS_MASTER_MST B
+		WHERE   A.DEAL_DATE     =   #{DEAL_DATE}
+		AND     A.BRANCH_CODE   =   #{BRANCH_CODE}
+		AND     A.SLIP_FLAG IN  ('31','34')
+		AND     A.GOOD_CODE IN  ('1001','1002','1004','1005','1036','1037','1025','1028')
+		AND     A.BRANCH_CODE   =   B.BRANCH_CODE
+		AND     A.CUS_CODE      =   B.CUS_CODE
+	]]>
+	</select>
+
+	<select id='selectGraph4' parameterType='Map' resultType='GraphBO4'>
+	<![CDATA[
+		SELECT  ISNULL(ROUND(SUM( CASE  WHEN B.CUS_TYPE = '99' THEN A.DEAL_AMT END )/1000,0),0)                   AS CASH_AMT , --현금
+		        ISNULL(ROUND(SUM( CASE  WHEN B.CUS_TYPE NOT IN ('99','04','05') THEN A.DEAL_AMT END )/1000,0),0)  AS BLC_AMT  , --외상판매
+		        ISNULL(ROUND(SUM( CASE  WHEN B.CUS_TYPE = '05' THEN A.DEAL_AMT END )/1000,0),0)                   AS TKT_AMT  , --상품권
+		        ISNULL(ROUND(SUM( CASE  WHEN B.CUS_TYPE = '04' THEN A.DEAL_AMT END )/1000,0),0)                   AS CRDT_AMT , --신용카드
+		        ISNULL(ROUND(SUM( A.DEAL_AMT )/1000,0),0)                                                         AS TOT_AMT    --합계
+		FROM    APR_REALTR_RCV A, CUS_MASTER_MST B
+		WHERE   A.DEAL_DATE     =   #{DEAL_DATE}
+		AND     A.BRANCH_CODE   =   #{BRANCH_CODE}
+		AND     A.SLIP_FLAG IN  ('31','34')
+		AND     A.GOOD_CODE IN  ('1001','1002','1004','1005','1036','1037','1025','1028')
+		AND     A.BRANCH_CODE   =   B.BRANCH_CODE
+		AND     A.CUS_CODE      =   B.CUS_CODE
+	]]>
+	</select>
+
+</mapper>

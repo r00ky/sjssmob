@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+<log4j:configuration xmlns:log4j='http://jakarta.apache.org/log4j/'>
+
+	<!-- Console 용 Appender 설정 -->
+	<appender name="STDOUT" class="org.apache.log4j.ConsoleAppender">
+		<layout class="org.apache.log4j.PatternLayout">
+			<param name="ConversionPattern"
+				value="%d %5p [%c] %m%n" />
+		</layout>
+	</appender>
+
+	<!-- WebLog 용 Appender 설정 -->
+	<appender name="WebLog" class="org.apache.log4j.DailyRollingFileAppender">
+		<param name="file" value="/home/hosting_users/sjssbiz/waslogs/mob/Moblog.log"/>
+		<param name="DatePattern" value="yyyy-MM-dd"/>
+		<layout class="org.apache.log4j.PatternLayout">
+			<param name="ConversionPattern" value="[%d] %-5p %l - %m%n" />
+		</layout>
+	</appender>
+
+	<!-- 서비스 엔진 로그 -->
+	<logger name="sjssmob" additivity="false">
+		<level value="ALL" />
+		<appender-ref ref="WebLog" />
+	</logger>
+
+	<!-- SQLMAP-Query 로그 -->
+	<logger name="java.sql.Connection">
+		<level value="ALL" />
+		<appender-ref ref="WebLog" />
+	</logger>
+	 
+	<logger name="java.sql.PreparedStatement">
+		<level value="ALL" />
+		<appender-ref ref="WebLog" />
+	</logger>
+	
+	<!-- SQLMAP-자체 로그 -->
+	<logger name="org.mybatis" additivity="false">
+		<level value="ALL" />
+		<appender-ref ref="WebLog" />
+	</logger>
+	
+	<root>
+		<level value="ALL" />
+		<appender-ref ref="WebLog" />
+	</root>
+
+</log4j:configuration>
